@@ -103,16 +103,21 @@ func GenerateInvoice(c *gin.Context) {
 		return
 	}
 
-	// Aggregate transactions by item
-	itemTotals := make(map[uint]*models.InvoiceItem)
+	// Aggregate transactions by item and price
+	type itemPriceKey struct {
+		ItemID    uint
+		UnitPrice float64
+	}
+	itemTotals := make(map[itemPriceKey]*models.InvoiceItem)
 	var total float64
 
 	for _, t := range transactions {
-		if existing, ok := itemTotals[t.ItemID]; ok {
+		key := itemPriceKey{ItemID: t.ItemID, UnitPrice: t.UnitPrice}
+		if existing, ok := itemTotals[key]; ok {
 			existing.Quantity += t.Quantity
 			existing.Total = float64(existing.Quantity) * existing.UnitPrice
 		} else {
-			itemTotals[t.ItemID] = &models.InvoiceItem{
+			itemTotals[key] = &models.InvoiceItem{
 				ItemName:    t.Item.Name,
 				Description: t.Item.Description,
 				Quantity:    t.Quantity,
@@ -185,6 +190,48 @@ func UpdateInvoiceStatus(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Invoice status updated", invoice)
+}
+
+// DeleteInvoice deletes an invoice and its line items
+func DeleteInvoice(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	id := c.Param("id")
+
+	// Start a transaction to delete both invoice and its items
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to start transaction")
+		return
+	}
+
+	// Check if invoice exists and belongs to tenant
+	var invoice models.Invoice
+	if err := tx.Where("id = ? AND tenant_id = ?", id, tenantID).First(&invoice).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusNotFound, "Invoice not found")
+		return
+	}
+
+	// Delete line items first
+	if err := tx.Where("invoice_id = ?", id).Delete(&models.InvoiceItem{}).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete invoice items")
+		return
+	}
+
+	// Delete the invoice (soft delete if gorm.DeletedAt is present, but let's do hard delete for tests if preferred or follow model)
+	// The model has DeletedAt gorm.DeletedAt so it's a soft delete
+	if err := tx.Delete(&invoice).Error; err != nil {
+		tx.Rollback()
+	if err := tx.Commit().Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to commit transaction")
+		return
+	}
+		return
+	}
+
+	tx.Commit()
+	utils.SuccessResponse(c, http.StatusOK, "Invoice deleted successfully", nil)
 }
 
 // GetDashboardStats returns dashboard statistics

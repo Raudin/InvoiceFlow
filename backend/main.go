@@ -77,6 +77,7 @@ func main() {
 			protected.POST("/invoices/generate", handlers.GenerateInvoice)
 			protected.GET("/invoices/:id", handlers.GetInvoice)
 			protected.PUT("/invoices/:id/status", handlers.UpdateInvoiceStatus)
+			protected.DELETE("/invoices/:id", handlers.DeleteInvoice)
 
 			// Dashboard
 			protected.GET("/dashboard/stats", handlers.GetDashboardStats)
