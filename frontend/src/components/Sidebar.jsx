@@ -71,7 +71,7 @@ export default function Sidebar() {
                             <>
                                 <item.icon
                                     size={20}
-                                    className={`transition-colors duration-300 ${isActive ? 'text-white' : 'group-hover:text-primary'}`}
+                                    className={`transition-colors duration-300 ${isActive ? 'text-black' : 'group-hover:text-primary'}`}
                                 />
                                 <span className="flex-1">{item.name}</span>
                                 <ChevronRight size={14} className={`opacity-0 group-hover:opacity-40 transition-opacity ${isActive ? 'hidden' : 'block'}`} />

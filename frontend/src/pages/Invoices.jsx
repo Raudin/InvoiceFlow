@@ -30,6 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import api from '../api/client';
+import * as XLSX from 'xlsx-js-style';
+import { useAuth } from '../context/AuthContext';
 import {
     FileText,
     Search,
@@ -46,6 +48,7 @@ import {
 } from 'lucide-react';
 
 export default function Invoices() {
+    const { user } = useAuth();
     const [invoices, setInvoices] = useState([]);
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -69,6 +72,118 @@ export default function Invoices() {
             setCustomers(custRes.data.data);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGenerateSummary = async () => {
+        if (!formData.customer_id) {
+            alert('Please select a customer first');
+            return;
+        }
+
+        try {
+            const response = await api.get('/transactions', {
+                params: {
+                    customer_id: formData.customer_id,
+                    month: formData.month,
+                    year: formData.year
+                }
+            });
+
+            const transactions = response.data.data;
+            if (!transactions || transactions.length === 0) {
+                alert('No transactions found for this period');
+                return;
+            }
+
+            // Get unique items and dates
+            const itemsMap = new Map(); // name -> true
+            const datesMap = new Map(); // dateStr -> true
+            const dataMatrix = {}; // itemName -> { dateStr -> totalQty }
+
+            transactions.forEach(t => {
+                const itemName = t.item?.name || 'Unknown Item';
+                const date = new Date(t.date);
+                const dateStr = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+
+                itemsMap.set(itemName, true);
+                datesMap.set(dateStr, date.getTime()); // store time for sorting
+
+                if (!dataMatrix[itemName]) dataMatrix[itemName] = {};
+                dataMatrix[itemName][dateStr] = (dataMatrix[itemName][dateStr] || 0) + t.quantity;
+            });
+
+            // Sort dates chronologically
+            const sortedDates = Array.from(datesMap.keys()).sort((a, b) => datesMap.get(a) - datesMap.get(b));
+            const sortedItems = Array.from(itemsMap.keys()).sort();
+
+            // Prepare Period String (e.g., Jan-2026)
+            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const period = `${months[formData.month - 1]}-${formData.year}`;
+            const customerName = customers.find(c => c.id.toString() === formData.customer_id.toString())?.name || 'Customer';
+            const businessName = user?.business_name || 'Business Summary';
+
+            // Prepare worksheet data with headers A1, A2, A3
+            const worksheetData = [
+                [businessName],
+                [period],
+                [customerName],
+                [], // Spacer
+                ["Item", ...sortedDates] // Table Header (A5)
+            ];
+
+            // Add item rows
+            sortedItems.forEach(item => {
+                const row = [item];
+                sortedDates.forEach(date => {
+                    row.push(dataMatrix[item][date] || 0);
+                });
+                worksheetData.push(row);
+            });
+
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+
+            // Apply Styling (Bold) - Rows are 0-indexed internally
+            // Bold A1, A2, A3
+            ['A1', 'A2', 'A3'].forEach(cell => {
+                if (worksheet[cell]) {
+                    worksheet[cell].s = { font: { bold: true, sz: 12 } };
+                }
+            });
+
+            // Bold Table Header Row (A5 starts at row index 4)
+            const headerRowIndex = 4;
+            const range = XLSX.utils.decode_range(worksheet['!ref']);
+            for (let C = range.s.c; C <= range.e.c; ++C) {
+                const address = XLSX.utils.encode_cell({ r: headerRowIndex, c: C });
+                if (!worksheet[address]) continue;
+                worksheet[address].s = {
+                    font: { bold: true },
+                    fill: { fgColor: { rgb: "F1F5F9" } }, // Light slate background
+                    border: {
+                        bottom: { style: "thin", color: { rgb: "CBD5E1" } }
+                    }
+                };
+            }
+
+            // Set the column widths
+            const maxDateLen = Math.max(...sortedDates.map(d => d.length), 10);
+            worksheet['!cols'] = [
+                { wch: 25 }, // Item column
+                ...sortedDates.map(() => ({ wch: maxDateLen }))
+            ];
+
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Summary");
+
+            // Generate filename
+            const fileName = `${customerName}_Summary_${period}.xlsx`;
+
+            XLSX.writeFile(workbook, fileName);
+            setIsGenerateOpen(false);
+        } catch (error) {
+            console.error('Summary Error:', error);
+            alert('Failed to generate summary');
         }
     };
 
@@ -143,7 +258,7 @@ export default function Invoices() {
                             Generate Invoice
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px] bg-card border-white/10 backdrop-blur-xl">
+                    <DialogContent className="sm:max-w-[500px] bg-card border-white/10 backdrop-blur-xl">
                         <form onSubmit={handleSubmit}>
                             <DialogHeader>
                                 <DialogTitle className="text-2xl font-bold italic">Monthly Invoice</DialogTitle>
@@ -195,9 +310,16 @@ export default function Invoices() {
                                     </div>
                                 </div>
                             </div>
-                            <DialogFooter>
-                                <Button type="button" variant="ghost" onClick={() => setIsGenerateOpen(false)}>Cancel</Button>
-                                <Button type="submit" className="font-bold">Generate Professional Invoice</Button>
+                            <DialogFooter className="flex flex-col sm:flex-row gap-3">
+                                <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                                    <Button type="button" variant="ghost" onClick={() => setIsGenerateOpen(false)} className="sm:mr-auto">Cancel</Button>
+                                    <div className="flex flex-col sm:flex-row gap-2">
+                                        <Button type="button" variant="outline" className="font-bold border-primary text-primary hover:bg-primary hover:text-black" onClick={handleGenerateSummary}>
+                                            Generate Summary
+                                        </Button>
+                                        <Button type="submit" className="font-bold">Generate Invoice</Button>
+                                    </div>
+                                </div>
                             </DialogFooter>
                         </form>
                     </DialogContent>

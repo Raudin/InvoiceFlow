@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"invoiceflow/database"
@@ -31,6 +33,21 @@ func ListTransactions(c *gin.Context) {
 
 	if customerID != "" {
 		query = query.Where("customer_id = ?", customerID)
+	}
+
+	month := c.Query("month")
+	year := c.Query("year")
+
+	if month != "" && year != "" {
+		m, _ := strconv.Atoi(month)
+		y, _ := strconv.Atoi(year)
+
+		// Use local time if the DB is stored in local, or just be explicit with the range
+		start := time.Date(y, time.Month(m), 1, 0, 0, 0, 0, time.Local)
+		end := start.AddDate(0, 1, 0).Add(-time.Second)
+
+		fmt.Printf("Filtering transactions for Tenant %d: %d/%d (Range: %v to %v)\n", tenantID, m, y, start, end)
+		query = query.Where("date >= ? AND date <= ?", start, end)
 	}
 
 	var transactions []models.Transaction
