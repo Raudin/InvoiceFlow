@@ -38,9 +38,14 @@ func main() {
 	// API routes
 	api := router.Group("/api")
 	{
+		// Global rate limit for all API routes
+		api.Use(middleware.DefaultRateLimiter())
+
 		// Public routes (no auth required)
 		auth := api.Group("/auth")
 		{
+			// Stricter rate limit for login and register
+			auth.Use(middleware.AuthRateLimiter())
 			auth.POST("/register", handlers.Register)
 			auth.POST("/login", handlers.Login)
 		}

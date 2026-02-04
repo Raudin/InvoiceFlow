@@ -140,7 +140,7 @@ func generateToken(userID, tenantID uint, email string) (string, error) {
 		TenantID: tenantID,
 		Email:    email,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour * 7)), // 7 days
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
