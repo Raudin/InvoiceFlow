@@ -86,6 +86,9 @@ func main() {
 
 			// Dashboard
 			protected.GET("/dashboard/stats", handlers.GetDashboardStats)
+
+			// Multi-month summary
+			protected.POST("/summaries/export", handlers.ExportMultiMonthSummary)
 		}
 	}
 

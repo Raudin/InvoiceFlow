@@ -85,7 +85,7 @@ func GenerateInvoice(c *gin.Context) {
 	}
 
 	// Get date range for the month
-	startDate := time.Date(req.Year, time.Month(req.Month), 1, 0, 0, 0, 0, time.UTC)
+	startDate := time.Date(req.Year, time.Month(req.Month), 1, 0, 0, 0, 0, time.Local)
 	endDate := startDate.AddDate(0, 1, 0).Add(-time.Second)
 
 	// Fetch transactions for this customer/month
@@ -223,14 +223,14 @@ func DeleteInvoice(c *gin.Context) {
 	// The model has DeletedAt gorm.DeletedAt so it's a soft delete
 	if err := tx.Delete(&invoice).Error; err != nil {
 		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete invoice")
+		return
+	}
+
 	if err := tx.Commit().Error; err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to commit transaction")
 		return
 	}
-		return
-	}
-
-	tx.Commit()
 	utils.SuccessResponse(c, http.StatusOK, "Invoice deleted successfully", nil)
 }
 

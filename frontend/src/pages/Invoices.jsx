@@ -55,6 +55,8 @@ export default function Invoices() {
     const [searchTerm, setSearchTerm] = useState('');
     const [formData, setFormData] = useState({ customer_id: '', month: (new Date().getMonth() + 1).toString(), year: new Date().getFullYear().toString() });
     const [selectedInvoice, setSelectedInvoice] = useState(null);
+    const [selectedPeriods, setSelectedPeriods] = useState([{ month: (new Date().getMonth() + 1).toString(), year: new Date().getFullYear().toString() }]);
+    const [selectedCustomers, setSelectedCustomers] = useState([]);
     const [isGenerateOpen, setIsGenerateOpen] = useState(false);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
 
@@ -75,132 +77,124 @@ export default function Invoices() {
         }
     };
 
-    const handleGenerateSummary = async () => {
-        if (!formData.customer_id) {
-            alert('Please select a customer first');
+    const handleExportMultiMonth = async () => {
+        if (selectedCustomers.length === 0) {
+            alert('Please select at least one customer');
+            return;
+        }
+
+        if (selectedPeriods.length === 0) {
+            alert('Please add at least one period');
             return;
         }
 
         try {
-            const response = await api.get('/transactions', {
-                params: {
-                    customer_id: formData.customer_id,
-                    month: formData.month,
-                    year: formData.year
-                }
+            const response = await api.post('/summaries/export', {
+                customer_ids: selectedCustomers.map(c => parseInt(c.id)),
+                periods: selectedPeriods.map(p => ({
+                    month: parseInt(p.month),
+                    year: parseInt(p.year)
+                }))
+            }, {
+                responseType: 'blob'
             });
 
-            const transactions = response.data.data;
-            if (!transactions || transactions.length === 0) {
-                alert('No transactions found for this period');
-                return;
+            // Create download link
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            let customerName = 'Customer';
+            if (selectedCustomers.length === 1) {
+                const selectedId = selectedCustomers[0].id;
+                customerName = customers.find(c => c.id.toString() === selectedId.toString())?.name || 'Customer';
+            } else if (selectedCustomers.length > 1) {
+                customerName = 'Customers';
             }
-
-            // Get unique items and dates
-            const itemsMap = new Map(); // name -> true
-            const datesMap = new Map(); // dateStr -> true
-            const dataMatrix = {}; // itemName -> { dateStr -> totalQty }
-
-            transactions.forEach(t => {
-                const itemName = t.item?.name || 'Unknown Item';
-                const date = new Date(t.date);
-                const dateStr = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
-
-                itemsMap.set(itemName, true);
-                datesMap.set(dateStr, date.getTime()); // store time for sorting
-
-                if (!dataMatrix[itemName]) dataMatrix[itemName] = {};
-                dataMatrix[itemName][dateStr] = (dataMatrix[itemName][dateStr] || 0) + t.quantity;
-            });
-
-            // Sort dates chronologically
-            const sortedDates = Array.from(datesMap.keys()).sort((a, b) => datesMap.get(a) - datesMap.get(b));
-            const sortedItems = Array.from(itemsMap.keys()).sort();
-
-            // Prepare Period String (e.g., Jan-2026)
-            const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-            const period = `${months[formData.month - 1]}-${formData.year}`;
-            const customerName = customers.find(c => c.id.toString() === formData.customer_id.toString())?.name || 'Customer';
-            const businessName = user?.business_name || 'Business Summary';
-
-            // Prepare worksheet data with headers A1, A2, A3
-            const worksheetData = [
-                [businessName],
-                [period],
-                [customerName],
-                [], // Spacer
-                ["Item", ...sortedDates] // Table Header (A5)
-            ];
-
-            // Add item rows
-            sortedItems.forEach(item => {
-                const row = [item];
-                sortedDates.forEach(date => {
-                    row.push(dataMatrix[item][date] || 0);
-                });
-                worksheetData.push(row);
-            });
-
-            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-
-            // Apply Styling (Bold) - Rows are 0-indexed internally
-            // Bold A1, A2, A3
-            ['A1', 'A2', 'A3'].forEach(cell => {
-                if (worksheet[cell]) {
-                    worksheet[cell].s = { font: { bold: true, sz: 12 } };
-                }
-            });
-
-            // Bold Table Header Row (A5 starts at row index 4)
-            const headerRowIndex = 4;
-            const range = XLSX.utils.decode_range(worksheet['!ref']);
-            for (let C = range.s.c; C <= range.e.c; ++C) {
-                const address = XLSX.utils.encode_cell({ r: headerRowIndex, c: C });
-                if (!worksheet[address]) continue;
-                worksheet[address].s = {
-                    font: { bold: true },
-                    fill: { fgColor: { rgb: "F1F5F9" } }, // Light slate background
-                    border: {
-                        bottom: { style: "thin", color: { rgb: "CBD5E1" } }
-                    }
-                };
-            }
-
-            // Set the column widths
-            const maxDateLen = Math.max(...sortedDates.map(d => d.length), 10);
-            worksheet['!cols'] = [
-                { wch: 25 }, // Item column
-                ...sortedDates.map(() => ({ wch: maxDateLen }))
-            ];
-
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Monthly Summary");
-
-            // Generate filename
-            const fileName = `${customerName}_Summary_${period}.xlsx`;
-
-            XLSX.writeFile(workbook, fileName);
+            link.setAttribute('download', `${customerName}_Report.xlsx`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
             setIsGenerateOpen(false);
         } catch (error) {
-            console.error('Summary Error:', error);
-            alert('Failed to generate summary');
+            console.error('Export Error:', error);
+            const message = error.response?.data?.message || error.message || 'Failed to export multi-month summary';
+            alert(`Export Failed: ${message}`);
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const data = {
-                customer_id: parseInt(formData.customer_id),
-                month: parseInt(formData.month),
-                year: parseInt(formData.year)
-            };
-            await api.post('/invoices/generate', data);
+            const tasks = [];
+            selectedCustomers.forEach((cust) => {
+                selectedPeriods.forEach((p) => {
+                    const data = {
+                        customer_id: parseInt(cust.id),
+                        month: parseInt(p.month),
+                        year: parseInt(p.year),
+                    };
+                    tasks.push({
+                        customer: cust,
+                        period: { month: data.month, year: data.year },
+                        promise: api.post('/invoices/generate', data),
+                    });
+                });
+            });
+
+            if (tasks.length === 0) {
+                return;
+            }
+
+            const results = await Promise.allSettled(tasks.map((t) => t.promise));
+
+            const failedDetails = [];
+            results.forEach((result, index) => {
+                if (result.status === 'rejected') {
+                    const task = tasks[index];
+                    const error = result.reason;
+                    const errorMessage =
+                        error?.response?.data?.message ||
+                        error?.message ||
+                        'Unknown error';
+                    const customerId = task.customer?.id ?? 'unknown';
+                    const customerName = task.customer?.name;
+                    const customerLabel = customerName
+                        ? `${customerName} (ID: ${customerId})`
+                        : `ID: ${customerId}`;
+                    failedDetails.push(
+                        `- Customer ${customerLabel} – ${task.period.month}/${task.period.year}: ${errorMessage}`
+                    );
+                }
+            });
+
+            if (failedDetails.length > 0) {
+                const message = `Failed to generate invoices for the following combinations:\n${failedDetails.join(
+                    '\n'
+                )}`;
+                alert(message);
+                return;
+            }
+
             fetchData();
             setIsGenerateOpen(false);
-            setFormData({ customer_id: '', month: (new Date().getMonth() + 1).toString(), year: new Date().getFullYear().toString() });
+            setFormData({
+                customer_id: '',
+                month: (new Date().getMonth() + 1).toString(),
+                year: new Date().getFullYear().toString(),
+            });
+            setSelectedPeriods([
+                {
+                    month: (new Date().getMonth() + 1).toString(),
+                    year: new Date().getFullYear().toString(),
+                },
+            ]);
+            setSelectedCustomers([]);
         } catch (error) {
-            alert(error.response?.data?.message || 'Failed to generate invoice');
+            alert(error?.response?.data?.message || 'Failed to generate invoices');
+            setIsGenerateOpen(false);
+            setFormData({ customer_id: '', month: (new Date().getMonth() + 1).toString(), year: new Date().getFullYear().toString() });
+            setSelectedPeriods([{ month: (new Date().getMonth() + 1).toString(), year: new Date().getFullYear().toString() }]);
+            setSelectedCustomers([]);
         }
     };
 
@@ -268,56 +262,136 @@ export default function Invoices() {
                             </DialogHeader>
                             <div className="grid gap-5 py-6">
                                 <div className="space-y-2">
-                                    <Label>Select Customer</Label>
-                                    <Select
-                                        value={formData.customer_id.toString()}
-                                        onValueChange={(val) => setFormData({ ...formData, customer_id: val })}
-                                    >
-                                        <SelectTrigger className="bg-white/5 border-white/10">
-                                            <SelectValue placeholder="Which customer?" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-card border-white/10">
-                                            {customers.map((c) => (
-                                                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="month">Month (1-12)</Label>
-                                        <Input
-                                            id="month"
-                                            type="number"
-                                            min="1"
-                                            max="12"
-                                            value={formData.month}
-                                            onChange={(e) => setFormData({ ...formData, month: e.target.value })}
-                                            className="bg-white/5 border-white/10"
-                                            required
-                                        />
+                                    <Label>Select Customers</Label>
+                                    <div className="flex gap-2">
+                                        <Select
+                                            onValueChange={(val) => {
+                                                const customer = customers.find(c => c.id.toString() === val);
+                                                if (customer && !selectedCustomers.some(c => c.id === customer.id)) {
+                                                    setSelectedCustomers([...selectedCustomers, customer]);
+                                                }
+                                            }}
+                                        >
+                                            <SelectTrigger className="bg-white/5 border-white/10 text-white flex-1">
+                                                <SelectValue placeholder="Add customer..." />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-card border-white/10 text-white">
+                                                {customers.map((c) => (
+                                                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="year">Year</Label>
-                                        <Input
-                                            id="year"
-                                            type="number"
-                                            value={formData.year}
-                                            onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-                                            className="bg-white/5 border-white/10"
-                                            required
-                                        />
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {selectedCustomers.map(cust => (
+                                            <Badge key={cust.id} variant="secondary" className="gap-1 bg-primary/20 text-primary border-primary/20">
+                                                {cust.name}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedCustomers(selectedCustomers.filter(c => c.id !== cust.id))}
+                                                    className="hover:text-white"
+                                                >
+                                                    <PlusCircle className="h-3 w-3 rotate-45" />
+                                                </button>
+                                            </Badge>
+                                        ))}
+                                        {selectedCustomers.length === 0 && (
+                                            <p className="text-xs text-muted-foreground italic">No customers selected</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <Label>Months to Include</Label>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 text-xs text-primary"
+                                            onClick={() => {
+                                                const now = new Date();
+                                                const m = (now.getMonth() + 1).toString();
+                                                const y = now.getFullYear().toString();
+                                                if (!selectedPeriods.some(p => p.month === m && p.year === y)) {
+                                                    setSelectedPeriods([...selectedPeriods, { month: m, year: y }]);
+                                                }
+                                            }}
+                                        >
+                                            <PlusCircle className="mr-1 h-3 w-3" /> Add Period
+                                        </Button>
+                                    </div>
+
+                                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                                        {selectedPeriods.map((period, idx) => (
+                                            <div key={idx} className="flex gap-2 items-center bg-white/5 p-3 rounded-lg border border-white/10 animate-in slide-in-from-right-2 duration-300 group hover:border-primary/30 transition-colors">
+                                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground">Month</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min="1"
+                                                            max="12"
+                                                            placeholder="MM"
+                                                            value={period.month}
+                                                            onChange={(e) => {
+                                                                const newPeriods = [...selectedPeriods];
+                                                                newPeriods[idx].month = e.target.value;
+                                                                setSelectedPeriods(newPeriods);
+                                                            }}
+                                                            className="bg-black/30 border-white/10 h-9 text-sm text-white focus:border-primary/50"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-[10px] uppercase text-muted-foreground">Year</Label>
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="YYYY"
+                                                            value={period.year}
+                                                            onChange={(e) => {
+                                                                const newPeriods = [...selectedPeriods];
+                                                                newPeriods[idx].year = e.target.value;
+                                                                setSelectedPeriods(newPeriods);
+                                                            }}
+                                                            className="bg-black/30 border-white/10 h-9 text-sm text-white focus:border-primary/50"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-9 w-9 text-muted-foreground hover:text-red-500 hover:bg-red-500/10 mt-5"
+                                                    onClick={() => setSelectedPeriods(selectedPeriods.filter((_, i) => i !== idx))}
+                                                >
+                                                    <PlusCircle className="h-4 w-4 rotate-45" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                        {selectedPeriods.length === 0 && (
+                                            <div className="text-center py-8 border border-dashed border-white/10 rounded-lg text-muted-foreground text-sm">
+                                                No periods added. Click 'Add Period' to start.
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                            <DialogFooter className="flex flex-col sm:flex-row gap-3">
+                            <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-white/10">
                                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
-                                    <Button type="button" variant="ghost" onClick={() => setIsGenerateOpen(false)} className="sm:mr-auto">Cancel</Button>
+                                    <Button type="button" variant="ghost" onClick={() => setIsGenerateOpen(false)} className="sm:mr-auto text-white">Cancel</Button>
                                     <div className="flex flex-col sm:flex-row gap-2">
-                                        <Button type="button" variant="outline" className="font-bold border-primary text-primary hover:bg-primary hover:text-black" onClick={handleGenerateSummary}>
-                                            Generate Summary
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            className="font-bold border-primary text-primary hover:bg-primary hover:text-black shadow-lg shadow-primary/5"
+                                            onClick={handleExportMultiMonth}
+                                            disabled={selectedPeriods.length === 0 || selectedCustomers.length === 0}
+                                        >
+                                            <Download className="mr-2 h-4 w-4" /> Export Report
                                         </Button>
-                                        <Button type="submit" className="font-bold">Generate Invoice</Button>
+                                        <Button type="submit" className="font-bold shadow-lg shadow-primary/20" disabled={selectedPeriods.length === 0 || selectedCustomers.length === 0}>
+                                            Generate Final Invoices
+                                        </Button>
                                     </div>
                                 </div>
                             </DialogFooter>
