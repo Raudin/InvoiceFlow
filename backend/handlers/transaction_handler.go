@@ -59,10 +59,23 @@ func ListTransactions(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, "Transactions retrieved", transactions)
 }
 
-// CreateTransaction creates a new transaction
+// BatchTransactionRequest defines the payload for creating multiple transactions
+type BatchTransactionRequest struct {
+	CustomerID uint              `json:"customer_id" binding:"required"`
+	Date       time.Time         `json:"date" binding:"required"`
+	Items      []TransactionItem `json:"items" binding:"required,dive"`
+	Notes      string            `json:"notes"`
+}
+
+type TransactionItem struct {
+	ItemID   uint `json:"item_id" binding:"required"`
+	Quantity int  `json:"quantity" binding:"required,gt=0"`
+}
+
+// CreateTransaction creates multiple transactions for a customer on a specific date
 func CreateTransaction(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
-	var req TransactionRequest
+	var req BatchTransactionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
@@ -76,32 +89,55 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	// Verify item belongs to tenant and get unit price
-	var item models.Item
-	if err := database.DB.Where("id = ? AND tenant_id = ?", req.ItemID, tenantID).First(&item).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid item")
+	// Start a DB transaction
+	tx := database.DB.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var createdTransactions []models.Transaction
+
+	for _, reqItem := range req.Items {
+		// Verify item belongs to tenant and get unit price
+		var item models.Item
+		if err := tx.Where("id = ? AND tenant_id = ?", reqItem.ItemID, tenantID).First(&item).Error; err != nil {
+			tx.Rollback()
+			utils.ErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Invalid item ID: %d", reqItem.ItemID))
+			return
+		}
+
+		transaction := models.Transaction{
+			TenantID:   tenantID,
+			CustomerID: req.CustomerID,
+			ItemID:     reqItem.ItemID,
+			Quantity:   reqItem.Quantity,
+			UnitPrice:  item.UnitPrice,
+			Date:       req.Date,
+			Notes:      req.Notes,
+		}
+
+		if err := tx.Create(&transaction).Error; err != nil {
+			tx.Rollback()
+			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transaction")
+			return
+		}
+
+		// Load relationships for response
+		// Note: Doing this inside the loop might be n+1 but for batch creation usually it's fine.
+		// For strict correctness we can load them later or just return the IDs.
+		// Here we just append the basic struct and maybe we don't need full preloads for the response
+		// if the UI just refreshes.
+		createdTransactions = append(createdTransactions, transaction)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to commit transactions")
 		return
 	}
 
-	transaction := models.Transaction{
-		TenantID:   tenantID,
-		CustomerID: req.CustomerID,
-		ItemID:     req.ItemID,
-		Quantity:   req.Quantity,
-		UnitPrice:  item.UnitPrice,
-		Date:       req.Date,
-		Notes:      req.Notes,
-	}
-
-	if err := database.DB.Create(&transaction).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transaction")
-		return
-	}
-
-	// Load relationships
-	database.DB.Preload("Customer").Preload("Item").First(&transaction, transaction.ID)
-
-	utils.SuccessResponse(c, http.StatusCreated, "Transaction created", transaction)
+	utils.SuccessResponse(c, http.StatusCreated, "Transactions created successfully", createdTransactions)
 }
 
 // GetTransaction returns a single transaction

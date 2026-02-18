@@ -29,9 +29,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import AppNavbar from '../components/Navbar';
 import api from '../api/client';
-import { PlusCircle, Search, Trash2, Calendar, User, Package, Hash, DollarSign, ArrowRightLeft } from 'lucide-react';
+import { PlusCircle, Search, Trash2, Calendar, User, Package, Hash, DollarSign, ArrowRightLeft, X, Eye } from 'lucide-react';
+import { cn } from "@/lib/utils";
 
 export default function Transactions() {
     const [transactions, setTransactions] = useState([]);
@@ -39,8 +39,15 @@ export default function Transactions() {
     const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [formData, setFormData] = useState({ customer_id: '', item_id: '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '' });
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+
+    // Form state for batch transaction
+    const [formData, setFormData] = useState({
+        customer_id: '',
+        date: new Date().toISOString().split('T')[0],
+        notes: '',
+        items: [{ item_id: '', quantity: '1', key: Date.now() }]
+    });
 
     useEffect(() => {
         fetchData();
@@ -61,21 +68,52 @@ export default function Transactions() {
         }
     };
 
+    const handleAddItemRow = () => {
+        setFormData(prev => ({
+            ...prev,
+            items: [...prev.items, { item_id: '', quantity: '1', key: Date.now() }]
+        }));
+    };
+
+    const handleRemoveItemRow = (index) => {
+        setFormData(prev => ({
+            ...prev,
+            items: prev.items.filter((_, i) => i !== index)
+        }));
+    };
+
+    const handleItemChange = (index, field, value) => {
+        const newItems = [...formData.items];
+        newItems[index] = { ...newItems[index], [field]: value };
+        setFormData({ ...formData, items: newItems });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
+            // Filter out empty rows
+            const validItems = formData.items.filter(i => i.item_id && i.quantity > 0);
+
+            if (validItems.length === 0) {
+                alert('Please add at least one valid item');
+                return;
+            }
+
             const data = {
-                ...formData,
                 customer_id: parseInt(formData.customer_id),
-                item_id: parseInt(formData.item_id),
-                quantity: parseInt(formData.quantity),
-                date: new Date(formData.date).toISOString()
+                date: new Date(formData.date).toISOString(),
+                notes: formData.notes,
+                items: validItems.map(i => ({
+                    item_id: parseInt(i.item_id),
+                    quantity: parseInt(i.quantity)
+                }))
             };
+
             await api.post('/transactions', data);
             fetchData();
             handleClose();
         } catch (error) {
-            alert(error.response?.data?.message || 'Failed to save transaction');
+            alert(error.response?.data?.message || 'Failed to save transactions');
         }
     };
 
@@ -87,13 +125,45 @@ export default function Transactions() {
     };
 
     const handleClose = () => {
-        setFormData({ customer_id: '', item_id: '', quantity: '', date: new Date().toISOString().split('T')[0], notes: '' });
+        setFormData({
+            customer_id: '',
+            date: new Date().toISOString().split('T')[0],
+            notes: '',
+            items: [{ item_id: '', quantity: '1', key: Date.now() }]
+        });
         setIsDialogOpen(false);
     };
 
-    const filteredTransactions = transactions.filter(tx =>
-        tx.customer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        tx.item?.name.toLowerCase().includes(searchTerm.toLowerCase())
+    // Group transactions by Date and Customer for the main view
+    const groupedTransactions = transactions.reduce((acc, tx) => {
+        const dateKey = new Date(tx.date).toISOString().split('T')[0];
+        const key = `${dateKey}_${tx.customer_id}`;
+
+        if (!acc[key]) {
+            acc[key] = {
+                id: key, // Virtual ID for the group
+                date: tx.date,
+                customer: tx.customer,
+                itemsCount: 0,
+                totalAmount: 0,
+                transactions: []
+            };
+        }
+
+        acc[key].itemsCount += 1;
+        acc[key].totalAmount += (tx.quantity * tx.unit_price);
+        acc[key].transactions.push(tx);
+
+        return acc;
+    }, {});
+
+    const groupedList = Object.values(groupedTransactions).sort((a, b) =>
+        new Date(b.date) - new Date(a.date)
+    );
+
+    const filteredGroups = groupedList.filter(group =>
+        group.customer?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        group.transactions.some(t => t.item?.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
     if (loading) {
@@ -111,7 +181,7 @@ export default function Transactions() {
                         <Table>
                             <TableHeader className="bg-white/5">
                                 <TableRow className="hover:bg-transparent border-white/5">
-                                    {Array(7).fill(0).map((_, j) => (
+                                    {Array(6).fill(0).map((_, j) => (
                                         <TableHead key={j}><Skeleton className="h-4 w-full" /></TableHead>
                                     ))}
                                 </TableRow>
@@ -119,7 +189,7 @@ export default function Transactions() {
                             <TableBody>
                                 {[1, 2, 3, 4, 5].map(i => (
                                     <TableRow key={i} className="border-white/5">
-                                        {Array(7).fill(0).map((_, j) => (
+                                        {Array(6).fill(0).map((_, j) => (
                                             <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                                         ))}
                                     </TableRow>
@@ -147,59 +217,32 @@ export default function Transactions() {
                             Record Transaction
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[480px] bg-card border-white/10 backdrop-blur-xl">
+                    <DialogContent className="sm:max-w-[700px] bg-card border-white/10 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
                         <form onSubmit={handleSubmit}>
                             <DialogHeader>
-                                <DialogTitle className="text-2xl font-bold">New Transaction</DialogTitle>
+                                <DialogTitle className="text-2xl font-bold">New Transaction Record</DialogTitle>
                                 <DialogDescription>
-                                    Log a new sale or service provided to a customer.
+                                    Log transactions for a customer on a specific date.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="grid gap-5 py-6">
-                                <div className="space-y-2">
-                                    <Label>Customer</Label>
-                                    <Select
-                                        value={formData.customer_id.toString()}
-                                        onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
-                                    >
-                                        <SelectTrigger className="bg-white/5 border-white/10">
-                                            <SelectValue placeholder="Select a customer" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-card border-white/10">
-                                            {customers.map((c) => (
-                                                <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Item / Service</Label>
-                                    <Select
-                                        value={formData.item_id.toString()}
-                                        onValueChange={(value) => setFormData({ ...formData, item_id: value })}
-                                    >
-                                        <SelectTrigger className="bg-white/5 border-white/10">
-                                            <SelectValue placeholder="Select an item" />
-                                        </SelectTrigger>
-                                        <SelectContent className="bg-card border-white/10">
-                                            {items.map((i) => (
-                                                <SelectItem key={i.id} value={i.id.toString()}>{i.name} (${i.unit_price})</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
+                            <div className="grid gap-6 py-6">
+                                {/* Header Section: Customer & Date */}
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="quantity">Quantity</Label>
-                                        <Input
-                                            id="quantity"
-                                            type="number"
-                                            min="1"
-                                            value={formData.quantity}
-                                            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                                            className="bg-white/5 border-white/10"
-                                            required
-                                        />
+                                        <Label>Customer</Label>
+                                        <Select
+                                            value={formData.customer_id.toString()}
+                                            onValueChange={(value) => setFormData({ ...formData, customer_id: value })}
+                                        >
+                                            <SelectTrigger className="bg-white/5 border-white/10">
+                                                <SelectValue placeholder="Select a customer" />
+                                            </SelectTrigger>
+                                            <SelectContent className="bg-card border-white/10">
+                                                {customers.map((c) => (
+                                                    <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="date">Date</Label>
@@ -213,6 +256,66 @@ export default function Transactions() {
                                         />
                                     </div>
                                 </div>
+
+                                {/* Items Section */}
+                                <div className="space-y-3">
+                                    <Label>Items / Services</Label>
+                                    <div className="space-y-3">
+                                        {formData.items.map((itemRow, index) => (
+                                            <div key={itemRow.key} className="flex gap-3 items-start animate-in slide-in-from-left-2 duration-300">
+                                                <div className="flex-1">
+                                                    <Select
+                                                        value={itemRow.item_id.toString()}
+                                                        onValueChange={(value) => handleItemChange(index, 'item_id', value)}
+                                                    >
+                                                        <SelectTrigger className="bg-white/5 border-white/10">
+                                                            <SelectValue placeholder="Select Item" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-card border-white/10">
+                                                            {items.map((i) => (
+                                                                <SelectItem key={i.id} value={i.id.toString()}>
+                                                                    {i.name} (${i.unit_price})
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="w-24">
+                                                    <Input
+                                                        type="number"
+                                                        min="1"
+                                                        value={itemRow.quantity}
+                                                        onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                                                        className="bg-white/5 border-white/10"
+                                                        placeholder="Qty"
+                                                        required
+                                                    />
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-muted-foreground hover:text-destructive"
+                                                    onClick={() => handleRemoveItemRow(index)}
+                                                    disabled={formData.items.length === 1}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={handleAddItemRow}
+                                        className="w-full border-dashed border-white/20 hover:border-primary/50 text-muted-foreground hover:text-primary"
+                                    >
+                                        <PlusCircle className="mr-2 h-4 w-4" />
+                                        Add Another Item
+                                    </Button>
+                                </div>
+
                                 <div className="space-y-2">
                                     <Label htmlFor="notes">Notes (Optional)</Label>
                                     <Input
@@ -220,12 +323,13 @@ export default function Transactions() {
                                         value={formData.notes}
                                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                                         className="bg-white/5 border-white/10"
+                                        placeholder="Overall notes for this record..."
                                     />
                                 </div>
                             </div>
                             <DialogFooter>
                                 <Button type="button" variant="ghost" onClick={handleClose}>Cancel</Button>
-                                <Button type="submit" className="font-bold">Record Transaction</Button>
+                                <Button type="submit" className="font-bold">Record Transactions</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
@@ -250,65 +354,89 @@ export default function Transactions() {
                             <TableRow className="hover:bg-transparent border-white/5">
                                 <TableHead className="py-4 font-bold"><Calendar className="inline mr-2 w-4 h-4" />DATE</TableHead>
                                 <TableHead className="font-bold"><User className="inline mr-2 w-4 h-4" />CUSTOMER</TableHead>
-                                <TableHead className="font-bold"><Package className="inline mr-2 w-4 h-4" />ITEM</TableHead>
-                                <TableHead className="font-bold"><Hash className="inline mr-2 w-4 h-4" />QTY</TableHead>
-                                <TableHead className="font-bold"><DollarSign className="inline mr-2 w-4 h-4" />PRICE</TableHead>
-                                <TableHead className="font-bold"><ArrowRightLeft className="inline mr-2 w-4 h-4" />TOTAL</TableHead>
+                                <TableHead className="font-bold text-center"><Hash className="inline mr-2 w-4 h-4" />ITEMS</TableHead>
+                                <TableHead className="font-bold text-right"><DollarSign className="inline mr-2 w-4 h-4" />TOTAL AMOUNT</TableHead>
                                 <TableHead className="text-right pr-6 font-bold">ACTIONS</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? (
-                                [1, 2, 3].map(i => (
-                                    <TableRow key={i} className="border-white/5">
-                                        {Array(7).fill(0).map((_, j) => (
-                                            <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                                        ))}
-                                    </TableRow>
-                                ))
-                            ) : filteredTransactions.length === 0 ? (
+                            {filteredGroups.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
-                                        No transactions found.
+                                    <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
+                                        No transaction records found.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredTransactions.map((tx) => (
-                                    <TableRow key={tx.id} className="border-white/5 hover:bg-white/5 transition-colors group">
+                                filteredGroups.map((group) => (
+                                    <TableRow key={group.id} className="border-white/5 hover:bg-white/5 transition-colors">
                                         <TableCell className="font-medium">
-                                            {new Date(tx.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                                            {new Date(group.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2">
                                                 <div className="h-7 w-7 rounded-full bg-blue-500/10 flex items-center justify-center text-[10px] text-blue-500 font-bold border border-blue-500/20">
-                                                    {tx.customer?.name.charAt(0)}
+                                                    {group.customer?.name.charAt(0)}
                                                 </div>
-                                                <span className="font-semibold">{tx.customer?.name}</span>
+                                                <span className="font-semibold">{group.customer?.name}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 font-medium">
-                                                {tx.item?.name}
+                                        <TableCell className="text-center">
+                                            <Badge variant="secondary" className="bg-white/10 text-foreground">
+                                                {group.itemsCount} items
                                             </Badge>
                                         </TableCell>
-                                        <TableCell>
-                                            <span className="font-mono text-muted-foreground">{tx.quantity}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-muted-foreground">${tx.unit_price.toFixed(2)}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="font-bold text-foreground">${(tx.quantity * tx.unit_price).toFixed(2)}</span>
+                                        <TableCell className="text-right font-bold text-foreground">
+                                            ${group.totalAmount.toFixed(2)}
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10 hover:text-destructive"
-                                                onClick={() => handleDelete(tx.id)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            <Dialog>
+                                                <DialogTrigger asChild>
+                                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/10 mr-1">
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                </DialogTrigger>
+                                                <DialogContent className="max-w-2xl bg-card border-white/10">
+                                                    <DialogHeader>
+                                                        <DialogTitle>Transaction Details</DialogTitle>
+                                                        <DialogDescription>
+                                                            {new Date(group.date).toLocaleDateString()} - {group.customer?.name}
+                                                        </DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="mt-4">
+                                                        <Table>
+                                                            <TableHeader>
+                                                                <TableRow className="border-white/10">
+                                                                    <TableHead>Item</TableHead>
+                                                                    <TableHead className="text-right">Qty</TableHead>
+                                                                    <TableHead className="text-right">Price</TableHead>
+                                                                    <TableHead className="text-right">Total</TableHead>
+                                                                    <TableHead></TableHead>
+                                                                </TableRow>
+                                                            </TableHeader>
+                                                            <TableBody>
+                                                                {group.transactions.map(tx => (
+                                                                    <TableRow key={tx.id} className="border-white/5">
+                                                                        <TableCell>{tx.item?.name}</TableCell>
+                                                                        <TableCell className="text-right">{tx.quantity}</TableCell>
+                                                                        <TableCell className="text-right">${tx.unit_price.toFixed(2)}</TableCell>
+                                                                        <TableCell className="text-right font-bold">${(tx.quantity * tx.unit_price).toFixed(2)}</TableCell>
+                                                                        <TableCell className="text-right">
+                                                                            <Button
+                                                                                size="icon"
+                                                                                variant="ghost"
+                                                                                className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                                                                                onClick={() => handleDelete(tx.id)}
+                                                                            >
+                                                                                <Trash2 className="h-3 w-3" />
+                                                                            </Button>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                ))}
+                                                            </TableBody>
+                                                        </Table>
+                                                    </div>
+                                                </DialogContent>
+                                            </Dialog>
                                         </TableCell>
                                     </TableRow>
                                 ))
