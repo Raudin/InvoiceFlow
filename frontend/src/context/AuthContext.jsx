@@ -30,14 +30,16 @@ export const AuthProvider = ({ children }) => {
     const login = async (email, password) => {
         const response = await api.post('/auth/login', { email, password });
         localStorage.setItem('token', response.data.data.token);
-        setUser(response.data.data.user);
+        const userData = response.data.data.user;
+        setUser(userData);
         return response.data;
     };
 
     const register = async (data) => {
         const response = await api.post('/auth/register', data);
         localStorage.setItem('token', response.data.data.token);
-        setUser(response.data.data.user);
+        const userData = response.data.data.user;
+        setUser(userData);
         return response.data;
     };
 
@@ -47,8 +49,11 @@ export const AuthProvider = ({ children }) => {
         window.location.href = '/login';
     };
 
+    const isAdmin = user?.role === 'admin';
+    const isCustomer = user?.role === 'customer';
+
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, register, logout, isAdmin, isCustomer }}>
             {children}
         </AuthContext.Provider>
     );

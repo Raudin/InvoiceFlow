@@ -24,7 +24,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import AppNavbar from '../components/Navbar';
 import api from '../api/client';
-import { Plus, Search, Edit2, Trash2, Mail, Phone, MapPin, UserPlus } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Mail, Phone, MapPin, UserPlus, Copy, KeyRound, Check } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function Customers() {
     const [customers, setCustomers] = useState([]);
@@ -33,6 +34,8 @@ export default function Customers() {
     const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '' });
     const [editingId, setEditingId] = useState(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [portalCreds, setPortalCreds] = useState(null); // { email, password }
+    const [copiedField, setCopiedField] = useState(null);
 
     useEffect(() => {
         fetchCustomers();
@@ -52,14 +55,29 @@ export default function Customers() {
         try {
             if (editingId) {
                 await api.put(`/customers/${editingId}`, formData);
+                fetchCustomers();
+                handleClose();
             } else {
-                await api.post('/customers', formData);
+                const res = await api.post('/customers', formData);
+                fetchCustomers();
+                handleClose();
+                // Show portal credentials if returned
+                if (res.data.data?.portal_email) {
+                    setPortalCreds({
+                        email: res.data.data.portal_email,
+                        password: res.data.data.portal_password,
+                    });
+                }
             }
-            fetchCustomers();
-            handleClose();
         } catch (error) {
             alert(error.response?.data?.message || 'Failed to save customer');
         }
+    };
+
+    const copyToClipboard = (text, field) => {
+        navigator.clipboard.writeText(text);
+        setCopiedField(field);
+        setTimeout(() => setCopiedField(null), 2000);
     };
 
     const handleEdit = (customer) => {
@@ -242,6 +260,70 @@ export default function Customers() {
                     </Table>
                 </CardContent>
             </Card>
+
+            {/* Portal Credentials Dialog */}
+            <Dialog open={!!portalCreds} onOpenChange={() => setPortalCreds(null)}>
+                <DialogContent className="sm:max-w-[460px] bg-card border-white/10 backdrop-blur-xl">
+                    <DialogHeader>
+                        <div className="flex items-center gap-3 mb-1">
+                            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                <KeyRound className="w-5 h-5 text-emerald-400" />
+                            </div>
+                            <DialogTitle className="text-xl font-bold">Portal Account Created</DialogTitle>
+                        </div>
+                        <DialogDescription>
+                            Share these credentials with the customer so they can log in to their portal and approve invoices.
+                            <span className="block mt-1 text-amber-400 text-xs font-semibold">⚠ This password will not be shown again.</span>
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Portal Email</Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    readOnly
+                                    value={portalCreds?.email || ''}
+                                    className="bg-white/5 border-white/10 font-mono text-sm"
+                                />
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="shrink-0"
+                                    onClick={() => copyToClipboard(portalCreds?.email, 'email')}
+                                >
+                                    {copiedField === 'email' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Portal Password</Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    readOnly
+                                    value={portalCreds?.password || ''}
+                                    className="bg-white/5 border-white/10 font-mono text-sm tracking-widest"
+                                />
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="shrink-0"
+                                    onClick={() => copyToClipboard(portalCreds?.password, 'password')}
+                                >
+                                    {copiedField === 'password' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button onClick={() => setPortalCreds(null)} className="w-full font-bold">
+                            Done – I've saved the credentials
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

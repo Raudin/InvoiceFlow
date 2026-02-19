@@ -227,6 +227,8 @@ export default function Invoices() {
                 return <Badge className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 px-2.5 py-0.5 rounded-full font-bold">PAID</Badge>;
             case 'sent':
                 return <Badge className="bg-amber-500/10 text-amber-500 border-amber-500/20 px-2.5 py-0.5 rounded-full font-bold">SENT</Badge>;
+            case 'approved':
+                return <Badge className="bg-teal-500/10 text-teal-400 border-teal-500/20 px-2.5 py-0.5 rounded-full font-bold">APPROVED</Badge>;
             default:
                 return <Badge className="bg-slate-500/10 text-slate-500 border-slate-500/20 px-2.5 py-0.5 rounded-full font-bold uppercase">{status}</Badge>;
         }
@@ -582,18 +584,26 @@ export default function Invoices() {
                                         PDF
                                     </Button>
                                 </div>
-                                <div className="flex gap-3">
-                                    <Button variant="outline" className="border-zinc-200 text-zinc-600 hover:bg-white" onClick={() => setIsDetailOpen(false)}>Close</Button>
-                                    {selectedInvoice.status === 'draft' && (
-                                        <Button className="bg-amber-500 hover:bg-amber-600 text-white font-bold" onClick={() => updateStatus(selectedInvoice.id, 'sent')}>
-                                            <Send className="mr-2 h-4 w-4" /> Mark as Sent
-                                        </Button>
+                                <div className="flex flex-col items-end gap-3">
+                                    {selectedInvoice.status !== 'approved' && selectedInvoice.status !== 'paid' && (
+                                        <div className="flex items-center gap-2 text-xs font-semibold text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1.5">
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M12 5a7 7 0 100 14A7 7 0 0012 5z" /></svg>
+                                            Awaiting customer approval before export
+                                        </div>
                                     )}
-                                    {selectedInvoice.status === 'sent' && (
-                                        <Button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold" onClick={() => updateStatus(selectedInvoice.id, 'paid')}>
-                                            <CheckCircle2 className="mr-2 h-4 w-4" /> Mark as Paid
-                                        </Button>
-                                    )}
+                                    <div className="flex gap-3">
+                                        <Button variant="outline" className="border-zinc-200 text-zinc-600 hover:bg-white" onClick={() => setIsDetailOpen(false)}>Close</Button>
+                                        {selectedInvoice.status === 'draft' && (
+                                            <Button className="bg-amber-500 hover:bg-amber-600 text-white font-bold" onClick={() => updateStatus(selectedInvoice.id, 'sent')}>
+                                                <Send className="mr-2 h-4 w-4" /> Mark as Sent
+                                            </Button>
+                                        )}
+                                        {(selectedInvoice.status === 'sent' || selectedInvoice.status === 'approved') && (
+                                            <Button className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold" onClick={() => updateStatus(selectedInvoice.id, 'paid')}>
+                                                <CheckCircle2 className="mr-2 h-4 w-4" /> Mark as Paid
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
