@@ -26,9 +26,11 @@ type LoginRequest struct {
 }
 
 type Claims struct {
-	UserID   uint   `json:"user_id"`
-	TenantID uint   `json:"tenant_id"`
-	Email    string `json:"email"`
+	UserID     uint   `json:"user_id"`
+	TenantID   uint   `json:"tenant_id"`
+	CustomerID uint   `json:"customer_id"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -77,7 +79,7 @@ func Register(c *gin.Context) {
 	}
 
 	// Generate JWT token
-	token, err := generateToken(user.ID, user.TenantID, user.Email)
+	token, err := generateToken(user.ID, user.TenantID, 0, user.Email, "admin")
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to generate token")
 		return
@@ -89,6 +91,8 @@ func Register(c *gin.Context) {
 			"id":            user.ID,
 			"name":          user.Name,
 			"email":         user.Email,
+			"role":          user.Role,
+			"customer_id":   user.CustomerID,
 			"business_name": tenant.BusinessName,
 		},
 	})
@@ -115,8 +119,14 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// Build customer ID for token
+	var customerIDVal uint
+	if user.CustomerID != nil {
+		customerIDVal = *user.CustomerID
+	}
+
 	// Generate JWT token
-	token, err := generateToken(user.ID, user.TenantID, user.Email)
+	token, err := generateToken(user.ID, user.TenantID, customerIDVal, user.Email, user.Role)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to generate token")
 		return
@@ -128,17 +138,21 @@ func Login(c *gin.Context) {
 			"id":            user.ID,
 			"name":          user.Name,
 			"email":         user.Email,
+			"role":          user.Role,
+			"customer_id":   user.CustomerID,
 			"business_name": user.Tenant.BusinessName,
 		},
 	})
 }
 
 // generateToken creates a JWT token
-func generateToken(userID, tenantID uint, email string) (string, error) {
+func generateToken(userID, tenantID, customerID uint, email, role string) (string, error) {
 	claims := Claims{
-		UserID:   userID,
-		TenantID: tenantID,
-		Email:    email,
+		UserID:     userID,
+		TenantID:   tenantID,
+		CustomerID: customerID,
+		Email:      email,
+		Role:       role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -168,6 +182,8 @@ func GetMe(c *gin.Context) {
 		"id":            user.ID,
 		"name":          user.Name,
 		"email":         user.Email,
+		"role":          user.Role,
+		"customer_id":   user.CustomerID,
 		"business_name": user.Tenant.BusinessName,
 		"tenant_id":     user.TenantID,
 	})

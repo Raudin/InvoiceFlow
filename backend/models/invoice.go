@@ -14,7 +14,8 @@ type Invoice struct {
 	Month         int            `gorm:"not null" json:"month"`
 	Year          int            `gorm:"not null" json:"year"`
 	Total         float64        `gorm:"not null" json:"total"`
-	Status        string         `gorm:"default:'draft'" json:"status"` // draft, sent, paid
+	Status        string         `gorm:"default:'draft'" json:"status"` // draft, sent, approved, paid
+	ApprovedAt    *time.Time     `json:"approved_at"`
 	GeneratedAt   time.Time      `gorm:"not null" json:"generated_at"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`

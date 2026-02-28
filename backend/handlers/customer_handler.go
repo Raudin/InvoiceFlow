@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"fmt"
+	"math/rand"
 	"net/http"
+	"strings"
 
 	"invoiceflow/database"
 	"invoiceflow/middleware"
@@ -31,7 +34,7 @@ func ListCustomers(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, "Customers retrieved", customers)
 }
 
-// CreateCustomer creates a new customer
+// CreateCustomer creates a new customer and a linked portal user account
 func CreateCustomer(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	var req CustomerRequest
@@ -54,7 +57,54 @@ func CreateCustomer(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessResponse(c, http.StatusCreated, "Customer created", customer)
+	// Auto-create a portal user account for this customer
+	portalEmail := req.Email
+	if portalEmail == "" {
+		// Fallback email if customer has none
+		portalEmail = fmt.Sprintf("customer%d@portal.invoiceflow.local", customer.ID)
+	}
+
+	// Check if a user with this email already exists; if so, skip creation quietly
+	var existingUser models.User
+	if err := database.DB.Where("email = ?", portalEmail).First(&existingUser).Error; err != nil {
+		// No existing user – create one
+		portalPassword := generateRandomPassword(10)
+		portalUser := models.User{
+			TenantID:   tenantID,
+			CustomerID: &customer.ID,
+			Name:       req.Name,
+			Email:      portalEmail,
+			Role:       "customer",
+		}
+
+		if hashErr := portalUser.HashPassword(portalPassword); hashErr != nil {
+			// Non-fatal: customer is created, just log
+			utils.SuccessResponse(c, http.StatusCreated, "Customer created (portal account failed)", gin.H{
+				"customer": customer,
+			})
+			return
+		}
+
+		if createErr := database.DB.Create(&portalUser).Error; createErr != nil {
+			utils.SuccessResponse(c, http.StatusCreated, "Customer created (portal account failed)", gin.H{
+				"customer": customer,
+			})
+			return
+		}
+
+		utils.SuccessResponse(c, http.StatusCreated, "Customer created", gin.H{
+			"customer":          customer,
+			"portal_email":      portalEmail,
+			"portal_password":   portalPassword,
+			"portal_login_note": "Share these credentials with the customer to access their portal.",
+		})
+		return
+	}
+
+	// User already existed (e.g., customer email re-used)
+	utils.SuccessResponse(c, http.StatusCreated, "Customer created", gin.H{
+		"customer": customer,
+	})
 }
 
 // GetCustomer returns a single customer
@@ -118,4 +168,15 @@ func DeleteCustomer(c *gin.Context) {
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Customer deleted", nil)
+}
+
+// generateRandomPassword creates a random alphanumeric password
+//todo: use crypto/rand for better randomness in production
+func generateRandomPassword(length int) string {
+	const charset = "abcdefghijklmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	var sb strings.Builder
+	for i := 0; i < length; i++ {
+		sb.WriteByte(charset[rand.Intn(len(charset))])
+	}
+	return sb.String()
 }

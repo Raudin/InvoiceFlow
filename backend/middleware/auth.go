@@ -14,9 +14,11 @@ import (
 )
 
 type Claims struct {
-	UserID   uint   `json:"user_id"`
-	TenantID uint   `json:"tenant_id"`
-	Email    string `json:"email"`
+	UserID     uint   `json:"user_id"`
+	TenantID   uint   `json:"tenant_id"`
+	CustomerID uint   `json:"customer_id"`
+	Email      string `json:"email"`
+	Role       string `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -63,8 +65,36 @@ func AuthMiddleware() gin.HandlerFunc {
 		// Set user info in context
 		c.Set("user_id", claims.UserID)
 		c.Set("tenant_id", claims.TenantID)
+		c.Set("customer_id", claims.CustomerID)
 		c.Set("email", claims.Email)
+		c.Set("role", claims.Role)
 
+		c.Next()
+	}
+}
+
+// AdminRequired blocks non-admin users
+func AdminRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "admin" {
+			utils.ErrorResponse(c, http.StatusForbidden, "Admin access required")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// CustomerRequired blocks non-customer users
+func CustomerRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "customer" {
+			utils.ErrorResponse(c, http.StatusForbidden, "Customer access required")
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }
@@ -85,4 +115,22 @@ func GetUserID(c *gin.Context) uint {
 		return 0
 	}
 	return userID.(uint)
+}
+
+// GetRole retrieves the role from context
+func GetRole(c *gin.Context) string {
+	role, exists := c.Get("role")
+	if !exists {
+		return ""
+	}
+	return role.(string)
+}
+
+// GetCustomerID retrieves the customer ID from context (only for customer-role users)
+func GetCustomerID(c *gin.Context) uint {
+	customerID, exists := c.Get("customer_id")
+	if !exists {
+		return 0
+	}
+	return customerID.(uint)
 }

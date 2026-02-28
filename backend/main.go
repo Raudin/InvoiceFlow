@@ -57,38 +57,53 @@ func main() {
 			// Auth
 			protected.GET("/auth/me", handlers.GetMe)
 
-			// Customers
-			protected.GET("/customers", handlers.ListCustomers)
-			protected.POST("/customers", handlers.CreateCustomer)
-			protected.GET("/customers/:id", handlers.GetCustomer)
-			protected.PUT("/customers/:id", handlers.UpdateCustomer)
-			protected.DELETE("/customers/:id", handlers.DeleteCustomer)
+			// ------- ADMIN routes -------
+			admin := protected.Group("")
+			admin.Use(middleware.AdminRequired())
+			{
+				// Customers
+				admin.GET("/customers", handlers.ListCustomers)
+				admin.POST("/customers", handlers.CreateCustomer)
+				admin.GET("/customers/:id", handlers.GetCustomer)
+				admin.PUT("/customers/:id", handlers.UpdateCustomer)
+				admin.DELETE("/customers/:id", handlers.DeleteCustomer)
 
-			// Items
-			protected.GET("/items", handlers.ListItems)
-			protected.POST("/items", handlers.CreateItem)
-			protected.GET("/items/:id", handlers.GetItem)
-			protected.PUT("/items/:id", handlers.UpdateItem)
-			protected.DELETE("/items/:id", handlers.DeleteItem)
+				// Items
+				admin.GET("/items", handlers.ListItems)
+				admin.POST("/items", handlers.CreateItem)
+				admin.GET("/items/:id", handlers.GetItem)
+				admin.PUT("/items/:id", handlers.UpdateItem)
+				admin.DELETE("/items/:id", handlers.DeleteItem)
 
-			// Transactions
-			protected.GET("/transactions", handlers.ListTransactions)
-			protected.POST("/transactions", handlers.CreateTransaction)
-			protected.GET("/transactions/:id", handlers.GetTransaction)
-			protected.DELETE("/transactions/:id", handlers.DeleteTransaction)
+				// Transactions
+				admin.GET("/transactions", handlers.ListTransactions)
+				admin.POST("/transactions", handlers.CreateTransaction)
+				admin.GET("/transactions/:id", handlers.GetTransaction)
+				admin.DELETE("/transactions/:id", handlers.DeleteTransaction)
 
-			// Invoices
-			protected.GET("/invoices", handlers.ListInvoices)
-			protected.POST("/invoices/generate", handlers.GenerateInvoice)
-			protected.GET("/invoices/:id", handlers.GetInvoice)
-			protected.PUT("/invoices/:id/status", handlers.UpdateInvoiceStatus)
-			protected.DELETE("/invoices/:id", handlers.DeleteInvoice)
+				// Invoices
+				admin.GET("/invoices", handlers.ListInvoices)
+				admin.POST("/invoices/generate", handlers.GenerateInvoice)
+				admin.GET("/invoices/:id", handlers.GetInvoice)
+				admin.PUT("/invoices/:id/status", handlers.UpdateInvoiceStatus)
+				admin.DELETE("/invoices/:id", handlers.DeleteInvoice)
 
-			// Dashboard
-			protected.GET("/dashboard/stats", handlers.GetDashboardStats)
+				// Dashboard
+				admin.GET("/dashboard/stats", handlers.GetDashboardStats)
 
-			// Multi-month summary
-			protected.POST("/summaries/export", handlers.ExportMultiMonthSummary)
+				// Multi-month summary
+				admin.POST("/summaries/export", handlers.ExportMultiMonthSummary)
+			}
+
+			// ------- CUSTOMER portal routes -------
+			portal := protected.Group("/portal")
+			portal.Use(middleware.CustomerRequired())
+			{
+				portal.GET("/dashboard", handlers.GetPortalDashboard)
+				portal.GET("/transactions", handlers.ListPortalTransactions)
+				portal.GET("/invoices", handlers.ListPortalInvoices)
+				portal.PUT("/invoices/:id/approve", handlers.ApprovePortalInvoice)
+			}
 		}
 	}
 

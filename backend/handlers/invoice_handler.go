@@ -169,11 +169,22 @@ func UpdateInvoiceStatus(c *gin.Context) {
 	id := c.Param("id")
 
 	var req struct {
-		Status string `json:"status" binding:"required,oneof=draft sent paid"`
+		Status string `json:"status" binding:"required,oneof=draft sent approved paid"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Only customers can approve; only admins can set paid/sent/draft
+	role := middleware.GetRole(c)
+	if req.Status == "approved" && role != "customer" {
+		utils.ErrorResponse(c, http.StatusForbidden, "Only customers can approve invoices")
+		return
+	}
+	if req.Status != "approved" && role == "customer" {
+		utils.ErrorResponse(c, http.StatusForbidden, "Customers can only approve invoices")
 		return
 	}
 
@@ -248,7 +259,7 @@ func GetDashboardStats(c *gin.Context) {
 
 	// Pending invoices
 	database.DB.Model(&models.Invoice{}).
-		Where("tenant_id = ? AND status IN ?", tenantID, []string{"draft", "sent"}).
+		Where("tenant_id = ? AND status IN ?", tenantID, []string{"draft", "sent", "approved"}).
 		Count(&stats.PendingInvoices)
 
 	// Transaction count

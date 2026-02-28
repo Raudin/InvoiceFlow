@@ -10,6 +10,7 @@ import (
 type User struct {
 	ID           uint           `gorm:"primarykey" json:"id"`
 	TenantID     uint           `gorm:"not null;index" json:"tenant_id"`
+	CustomerID   *uint          `gorm:"index" json:"customer_id"`
 	Name         string         `gorm:"not null" json:"name"`
 	Email        string         `gorm:"uniqueIndex;size:255;not null" json:"email"`
 	PasswordHash string         `gorm:"not null" json:"-"`
@@ -18,8 +19,9 @@ type User struct {
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 
-	// Relationship
-	Tenant Tenant `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	// Relationships
+	Tenant   Tenant    `gorm:"foreignKey:TenantID" json:"tenant,omitempty"`
+	Customer *Customer `gorm:"foreignKey:CustomerID" json:"-"`
 }
 
 // HashPassword hashes the user's password
