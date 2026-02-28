@@ -1,8 +1,9 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"net/http"
 	"strings"
 
@@ -68,7 +69,13 @@ func CreateCustomer(c *gin.Context) {
 	var existingUser models.User
 	if err := database.DB.Where("email = ?", portalEmail).First(&existingUser).Error; err != nil {
 		// No existing user – create one
-		portalPassword := generateRandomPassword(10)
+		portalPassword, err := generateRandomPassword(10)
+		if err != nil {
+			utils.SuccessResponse(c, http.StatusCreated, "Customer created (portal account failed)", gin.H{
+				"customer": customer,
+			})
+			return
+		}
 		portalUser := models.User{
 			TenantID:   tenantID,
 			CustomerID: &customer.ID,
@@ -170,13 +177,16 @@ func DeleteCustomer(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, "Customer deleted", nil)
 }
 
-// generateRandomPassword creates a random alphanumeric password
-//todo: use crypto/rand for better randomness in production
-func generateRandomPassword(length int) string {
+// generateRandomPassword creates a cryptographically secure random alphanumeric password
+func generateRandomPassword(length int) (string, error) {
 	const charset = "abcdefghijklmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 	var sb strings.Builder
 	for i := 0; i < length; i++ {
-		sb.WriteByte(charset[rand.Intn(len(charset))])
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", fmt.Errorf("failed to generate random password: %w", err)
+		}
+		sb.WriteByte(charset[num.Int64()])
 	}
-	return sb.String()
+	return sb.String(), nil
 }

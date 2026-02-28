@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"invoiceflow/database"
+	"invoiceflow/middleware"
 	"invoiceflow/models"
 	"invoiceflow/utils"
 
@@ -23,15 +24,6 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required"`
-}
-
-type Claims struct {
-	UserID     uint   `json:"user_id"`
-	TenantID   uint   `json:"tenant_id"`
-	CustomerID uint   `json:"customer_id"`
-	Email      string `json:"email"`
-	Role       string `json:"role"`
-	jwt.RegisteredClaims
 }
 
 // Register creates a new tenant and user
@@ -147,7 +139,7 @@ func Login(c *gin.Context) {
 
 // generateToken creates a JWT token
 func generateToken(userID, tenantID, customerID uint, email, role string) (string, error) {
-	claims := Claims{
+	claims := middleware.Claims{
 		UserID:     userID,
 		TenantID:   tenantID,
 		CustomerID: customerID,

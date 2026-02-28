@@ -105,7 +105,10 @@ func GetTenantID(c *gin.Context) uint {
 	if !exists {
 		return 0
 	}
-	return tenantID.(uint)
+	if val, ok := tenantID.(uint); ok {
+		return val
+	}
+	return 0
 }
 
 // GetUserID retrieves user ID from context
@@ -114,7 +117,10 @@ func GetUserID(c *gin.Context) uint {
 	if !exists {
 		return 0
 	}
-	return userID.(uint)
+	if val, ok := userID.(uint); ok {
+		return val
+	}
+	return 0
 }
 
 // GetRole retrieves the role from context
@@ -123,7 +129,10 @@ func GetRole(c *gin.Context) string {
 	if !exists {
 		return ""
 	}
-	return role.(string)
+	if val, ok := role.(string); ok {
+		return val
+	}
+	return ""
 }
 
 // GetCustomerID retrieves the customer ID from context (only for customer-role users)
@@ -132,5 +141,8 @@ func GetCustomerID(c *gin.Context) uint {
 	if !exists {
 		return 0
 	}
-	return customerID.(uint)
+	if val, ok := customerID.(uint); ok {
+		return val
+	}
+	return 0
 }

@@ -39,14 +39,21 @@ func ListTransactions(c *gin.Context) {
 	year := c.Query("year")
 
 	if month != "" && year != "" {
-		m, _ := strconv.Atoi(month)
-		y, _ := strconv.Atoi(year)
+		m, err := strconv.Atoi(month)
+		if err != nil {
+			utils.ErrorResponse(c, http.StatusBadRequest, "Invalid month parameter")
+			return
+		}
+		y, err := strconv.Atoi(year)
+		if err != nil {
+			utils.ErrorResponse(c, http.StatusBadRequest, "Invalid year parameter")
+			return
+		}
 
 		// Use local time if the DB is stored in local, or just be explicit with the range
 		start := time.Date(y, time.Month(m), 1, 0, 0, 0, 0, time.Local)
 		end := start.AddDate(0, 1, 0).Add(-time.Second)
 
-		fmt.Printf("Filtering transactions for Tenant %d: %d/%d (Range: %v to %v)\n", tenantID, m, y, start, end)
 		query = query.Where("date >= ? AND date <= ?", start, end)
 	}
 
