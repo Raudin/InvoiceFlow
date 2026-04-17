@@ -45,8 +45,25 @@ services:
     restart: unless-stopped
     ports:
       - "80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.invoiceflow.rule=Host(`staging.chama360.com`)"
+      - "traefik.http.routers.invoiceflow.entrypoints=websecure"
+      - "traefik.http.routers.invoiceflow.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.invoiceflow-http.rule=Host(`staging.chama360.com`)"
+      - "traefik.http.routers.invoiceflow-http.entrypoints=web"
+      - "traefik.http.routers.invoiceflow-http.middlewares=invoiceflow-https-redirect"
+      - "traefik.http.middlewares.invoiceflow-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.services.invoiceflow.loadbalancer.server.port=80"
+    networks:
+      - dokploy-network
+      - default
     depends_on:
       - backend
 
 volumes:
   mysql_data:
+
+networks:
+  dokploy-network:
+    external: true
