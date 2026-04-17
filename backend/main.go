@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -32,9 +33,8 @@ func main() {
 	router := gin.Default()
 
 	// CORS middleware
-	// TODO: For production deployments, this will expose the API to unauthorized origins.
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOrigins:     getAllowedOrigins(),
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -152,4 +152,14 @@ func main() {
 	}
 
 	log.Println("Server exited gracefully")
+}
+
+// getAllowedOrigins returns CORS origins from the CORS_ORIGINS env var (comma-separated),
+// falling back to localhost origins for development.
+func getAllowedOrigins() []string {
+	origins := os.Getenv("CORS_ORIGINS")
+	if origins == "" {
+		return []string{"http://localhost:5173", "http://localhost:3000"}
+	}
+	return strings.Split(origins, ",")
 }

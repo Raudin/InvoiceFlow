@@ -18,3 +18,6 @@ invoiceflow
 # OS files
 .DS_Store
 Thumbs.db
+
+# Docker
+mysql_data/

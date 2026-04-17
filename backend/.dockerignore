@@ -1,0 +1,13 @@
+.env
+.env.*
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+invoiceflow
+.git
+.gitignore
+.idea/
+.vscode/
+README.md
