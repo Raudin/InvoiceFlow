@@ -25,6 +25,11 @@ func main() {
 		log.Println("No .env file found, using system environment variables")
 	}
 
+	// Critical security check: Ensure JWT_SECRET is set
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET environment variable is not set. Application cannot start for security reasons.")
+	}
+
 	// Connect to database
 	database.Connect()
 	database.Migrate()
