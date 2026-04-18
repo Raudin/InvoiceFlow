@@ -26,10 +26,18 @@ type TransactionRequest struct {
 func ListTransactions(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	customerID := c.Query("customer_id")
+	role := middleware.GetRole(c)
+	userID := middleware.GetUserID(c)
 
 	query := database.DB.Where("tenant_id = ?", tenantID).
 		Preload("Customer").
-		Preload("Item")
+		Preload("Item").
+		Preload("RecordedBy")
+
+	// If the user is a rep, only show their transactions
+	if role == "rep" {
+		query = query.Where("recorded_by_id = ?", userID)
+	}
 
 	if customerID != "" {
 		query = query.Where("customer_id = ?", customerID)
@@ -82,6 +90,7 @@ type TransactionItem struct {
 // CreateTransaction creates multiple transactions for a customer on a specific date
 func CreateTransaction(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
+	userID := middleware.GetUserID(c)
 	var req BatchTransactionRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -116,13 +125,14 @@ func CreateTransaction(c *gin.Context) {
 		}
 
 		transaction := models.Transaction{
-			TenantID:   tenantID,
-			CustomerID: req.CustomerID,
-			ItemID:     reqItem.ItemID,
-			Quantity:   reqItem.Quantity,
-			UnitPrice:  item.UnitPrice,
-			Date:       req.Date,
-			Notes:      req.Notes,
+			TenantID:     tenantID,
+			CustomerID:   req.CustomerID,
+			ItemID:       reqItem.ItemID,
+			RecordedByID: userID,
+			Quantity:     reqItem.Quantity,
+			UnitPrice:    item.UnitPrice,
+			Date:         req.Date,
+			Notes:        req.Notes,
 		}
 
 		if err := tx.Create(&transaction).Error; err != nil {
@@ -164,15 +174,75 @@ func GetTransaction(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, "Transaction retrieved", transaction)
 }
 
+// UpdateTransaction updates a transaction
+func UpdateTransaction(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	role := middleware.GetRole(c)
+	userID := middleware.GetUserID(c)
+	id := c.Param("id")
+
+	var req struct {
+		Quantity int    `json:"quantity" binding:"required,gt=0"`
+		Notes    string `json:"notes"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var transaction models.Transaction
+	if err := database.DB.Where("id = ? AND tenant_id = ?", id, tenantID).First(&transaction).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "Transaction not found")
+		return
+	}
+
+	// Restriction for reps: can only edit their own transactions within 24 hours
+	if role == "rep" {
+		if transaction.RecordedByID != userID {
+			utils.ErrorResponse(c, http.StatusForbidden, "You can only edit your own transactions")
+			return
+		}
+		if time.Since(transaction.CreatedAt) > 24*time.Hour {
+			utils.ErrorResponse(c, http.StatusForbidden, "Transactions older than 24 hours cannot be edited")
+			return
+		}
+	}
+
+	transaction.Quantity = req.Quantity
+	transaction.Notes = req.Notes
+
+	if err := database.DB.Save(&transaction).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to update transaction")
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, "Transaction updated successfully", transaction)
+}
+
 // DeleteTransaction deletes a transaction
 func DeleteTransaction(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
+	role := middleware.GetRole(c)
+	userID := middleware.GetUserID(c)
 	id := c.Param("id")
 
 	var transaction models.Transaction
 	if err := database.DB.Where("id = ? AND tenant_id = ?", id, tenantID).First(&transaction).Error; err != nil {
 		utils.ErrorResponse(c, http.StatusNotFound, "Transaction not found")
 		return
+	}
+
+	// Restriction for reps: can only delete their own transactions within 24 hours
+	if role == "rep" {
+		if transaction.RecordedByID != userID {
+			utils.ErrorResponse(c, http.StatusForbidden, "You can only delete your own transactions")
+			return
+		}
+		if time.Since(transaction.CreatedAt) > 24*time.Hour {
+			utils.ErrorResponse(c, http.StatusForbidden, "Transactions older than 24 hours cannot be deleted")
+			return
+		}
 	}
 
 	if err := database.DB.Delete(&transaction).Error; err != nil {

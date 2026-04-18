@@ -111,6 +111,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
+	// Check if user is active
+	if !user.IsActive {
+		utils.ErrorResponse(c, http.StatusForbidden, "Account is inactive. Please contact your administrator.")
+		return
+	}
+
 	// Build customer ID for token
 	var customerIDVal uint
 	if user.CustomerID != nil {

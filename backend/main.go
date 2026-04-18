@@ -54,6 +54,8 @@ func main() {
 			auth.Use(middleware.AuthRateLimiter())
 			auth.POST("/register", handlers.Register)
 			auth.POST("/login", handlers.Login)
+			auth.POST("/forgot-password", handlers.ForgotPassword)
+			auth.POST("/reset-password", handlers.ResetPassword)
 		}
 
 		// Protected routes (auth required)
@@ -85,6 +87,7 @@ func main() {
 				admin.GET("/transactions", handlers.ListTransactions)
 				admin.POST("/transactions", handlers.CreateTransaction)
 				admin.GET("/transactions/:id", handlers.GetTransaction)
+				admin.PUT("/transactions/:id", handlers.UpdateTransaction)
 				admin.DELETE("/transactions/:id", handlers.DeleteTransaction)
 
 				// Invoices
@@ -99,6 +102,13 @@ func main() {
 
 				// Multi-month summary
 				admin.POST("/summaries/export", handlers.ExportMultiMonthSummary)
+
+				// Representatives
+				admin.GET("/reps", handlers.ListReps)
+				admin.POST("/reps", handlers.CreateRep)
+				admin.PUT("/reps/:id", handlers.UpdateRep)
+				admin.PATCH("/reps/:id/toggle", handlers.ToggleRepStatus)
+				admin.DELETE("/reps/:id", handlers.DeleteRep)
 			}
 
 			// ------- CUSTOMER portal routes -------
@@ -109,6 +119,19 @@ func main() {
 				portal.GET("/transactions", handlers.ListPortalTransactions)
 				portal.GET("/invoices", handlers.ListPortalInvoices)
 				portal.PUT("/invoices/:id/approve", handlers.ApprovePortalInvoice)
+			}
+
+			// ------- REPRESENTATIVE routes -------
+			rep := protected.Group("/rep")
+			rep.Use(middleware.RepRequired())
+			{
+				rep.GET("/dashboard", handlers.GetRepDashboardStats)
+				rep.GET("/transactions", handlers.ListTransactions)
+				rep.POST("/transactions", handlers.CreateTransaction)
+				rep.PUT("/transactions/:id", handlers.UpdateTransaction)
+				rep.DELETE("/transactions/:id", handlers.DeleteTransaction)
+				rep.GET("/customers", handlers.ListCustomers)
+				rep.GET("/items", handlers.ListItems)
 			}
 		}
 	}

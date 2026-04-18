@@ -20,11 +20,19 @@ type ItemRequest struct {
 // ListItems returns all items for the tenant
 func ListItems(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
+	role := middleware.GetRole(c)
 
 	var items []models.Item
 	if err := database.DB.Where("tenant_id = ?", tenantID).Find(&items).Error; err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch items")
 		return
+	}
+
+	// If the user is a rep, hide the unit price
+	if role == "rep" {
+		for i := range items {
+			items[i].UnitPrice = 0
+		}
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, "Items retrieved", items)

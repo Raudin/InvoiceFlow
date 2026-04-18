@@ -15,6 +15,9 @@ type User struct {
 	Email        string         `gorm:"uniqueIndex;size:255;not null" json:"email"`
 	PasswordHash string         `gorm:"not null" json:"-"`
 	Role         string         `gorm:"default:'admin'" json:"role"`
+	IsActive     bool           `gorm:"default:true" json:"is_active"`
+	ResetToken   string         `json:"-"`
+	ResetExpires *time.Time     `json:"-"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
