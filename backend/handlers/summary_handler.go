@@ -34,6 +34,33 @@ type BatchMonthData struct {
 	Error        error
 }
 
+// GetRepDashboardStats returns stats for the representative dashboard
+func GetRepDashboardStats(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	userID := middleware.GetUserID(c)
+
+	today := time.Now().Truncate(24 * time.Hour)
+	tomorrow := today.Add(24 * time.Hour)
+
+	var todayCount int64
+	database.DB.Model(&models.Transaction{}).
+		Where("tenant_id = ? AND recorded_by_id = ? AND date >= ? AND date < ?", tenantID, userID, today, tomorrow).
+		Count(&todayCount)
+
+	var recentTransactions []models.Transaction
+	database.DB.Where("tenant_id = ? AND recorded_by_id = ?", tenantID, userID).
+		Preload("Customer").
+		Preload("Item").
+		Order("created_at DESC").
+		Limit(5).
+		Find(&recentTransactions)
+
+	utils.SuccessResponse(c, http.StatusOK, "Rep stats retrieved", gin.H{
+		"today_transactions_count": todayCount,
+		"recent_transactions":      recentTransactions,
+	})
+}
+
 // ExportMultiMonthSummary generates an Excel file with multiple sheets (one per customer/month combination)
 func ExportMultiMonthSummary(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)

@@ -73,6 +73,32 @@ func AuthMiddleware() gin.HandlerFunc {
 	}
 }
 
+// RepRequired blocks non-rep users
+func RepRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "rep" {
+			utils.ErrorResponse(c, http.StatusForbidden, "Representative access required")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+// AdminOrRepRequired blocks users who are neither admin nor rep
+func AdminOrRepRequired() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		role, _ := c.Get("role")
+		if role != "admin" && role != "rep" {
+			utils.ErrorResponse(c, http.StatusForbidden, "Admin or Representative access required")
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
 // AdminRequired blocks non-admin users
 func AdminRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {

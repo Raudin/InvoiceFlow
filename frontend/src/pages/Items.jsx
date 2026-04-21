@@ -131,7 +131,7 @@ export default function Items() {
                                     />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="unit_price">Unit Price ($)</Label>
+                                    <Label htmlFor="unit_price">Unit Price (KES)</Label>
                                     <div className="relative">
                                         <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                                         <Input
@@ -211,12 +211,12 @@ export default function Items() {
                                             </span>
                                         </TableCell>
                                         <TableCell>
-                                            <span className="font-mono text-primary-foreground font-bold text-lg bg-primary/10 px-2 py-1 rounded-md border border-primary/20">
-                                                ${item.unit_price.toFixed(2)}
+                                            <span className="font-mono text-emerald-400 font-bold text-lg bg-emerald-500/10 px-2 py-1 rounded-md border border-emerald-500/20">
+                                                KES {item.unit_price.toFixed(2)}
                                             </span>
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex justify-end gap-2">
                                                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEdit(item)}>
                                                     <Edit2 className="h-4 w-4" />
                                                 </Button>

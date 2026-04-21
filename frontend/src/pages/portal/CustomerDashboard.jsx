@@ -102,7 +102,7 @@ export default function CustomerDashboard() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-4xl font-black text-emerald-400">
-                            ${(stats?.total_spend ?? 0).toFixed(2)}
+                            KES {(stats?.total_spend ?? 0).toFixed(2)}
                         </p>
                     </CardContent>
                 </Card>
@@ -137,7 +137,7 @@ export default function CustomerDashboard() {
                                         </div>
                                         <div className="text-right">
                                             <p className="text-sm font-bold text-emerald-400">
-                                                ${(tx.quantity * tx.unit_price).toFixed(2)}
+                                                KES {(tx.quantity * tx.unit_price).toFixed(2)}
                                             </p>
                                             <p className="text-xs text-muted-foreground">Qty: {tx.quantity}</p>
                                         </div>

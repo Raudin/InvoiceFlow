@@ -459,7 +459,7 @@ export default function Invoices() {
                                             {new Date(inv.year, inv.month - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}
                                         </TableCell>
                                         <TableCell className="text-right font-black tracking-tight text-lg">
-                                            ${inv.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                            KES {inv.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             {getStatusBadge(inv.status)}
@@ -546,8 +546,8 @@ export default function Invoices() {
                                                     <p className="text-xs text-zinc-500 mt-1">Service delivered between {selectedInvoice.month}/{selectedInvoice.year}</p>
                                                 </TableCell>
                                                 <TableCell className="text-center font-medium text-zinc-600">{item.quantity}</TableCell>
-                                                <TableCell className="text-right text-zinc-600">${item.unit_price.toFixed(2)}</TableCell>
-                                                <TableCell className="text-right font-bold text-zinc-900">${item.total.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right text-zinc-600">KES {item.unit_price.toFixed(2)}</TableCell>
+                                                <TableCell className="text-right font-bold text-zinc-900">KES {item.total.toFixed(2)}</TableCell>
                                             </TableRow>
                                         ))}
                                     </TableBody>
@@ -559,15 +559,15 @@ export default function Invoices() {
                                 <div className="w-64 space-y-4">
                                     <div className="flex justify-between text-sm text-zinc-500">
                                         <span>Subtotal</span>
-                                        <span>${selectedInvoice.total.toFixed(2)}</span>
+                                        <span>KES {selectedInvoice.total.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-sm text-zinc-500 pb-4 border-b border-zinc-100">
                                         <span>Tax (0%)</span>
-                                        <span>$0.00</span>
+                                        <span>KES 0.00</span>
                                     </div>
                                     <div className="flex justify-between text-2xl font-black text-primary">
                                         <span>Total</span>
-                                        <span>${selectedInvoice.total.toFixed(2)}</span>
+                                        <span>KES {selectedInvoice.total.toFixed(2)}</span>
                                     </div>
                                 </div>
                             </div>

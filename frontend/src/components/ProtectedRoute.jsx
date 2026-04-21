@@ -18,6 +18,7 @@ export function AdminRoute({ children }) {
     if (loading) return <LoadingScreen />;
     if (!user) return <Navigate to="/login" replace />;
     if (user.role === 'customer') return <Navigate to="/portal" replace />;
+    if (user.role === 'rep') return <Navigate to="/rep/dashboard" replace />;
     return children;
 }
 
@@ -26,7 +27,17 @@ export function CustomerRoute({ children }) {
     const { user, loading } = useAuth();
     if (loading) return <LoadingScreen />;
     if (!user) return <Navigate to="/login" replace />;
+    if (user.role === 'admin' || user.role === 'rep') return <Navigate to="/" replace />;
+    return children;
+}
+
+/** Wraps rep portal – redirects customers to portal, admins to root, unauthenticated to login */
+export function RepRoute({ children }) {
+    const { user, loading } = useAuth();
+    if (loading) return <LoadingScreen />;
+    if (!user) return <Navigate to="/login" replace />;
     if (user.role === 'admin') return <Navigate to="/" replace />;
+    if (user.role === 'customer') return <Navigate to="/portal" replace />;
     return children;
 }
 

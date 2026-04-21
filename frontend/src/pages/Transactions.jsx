@@ -274,7 +274,7 @@ export default function Transactions() {
                                                         <SelectContent className="bg-card border-white/10">
                                                             {items.map((i) => (
                                                                 <SelectItem key={i.id} value={i.id.toString()}>
-                                                                    {i.name} (${i.unit_price})
+                                                                    {i.name} (KES {i.unit_price})
                                                                 </SelectItem>
                                                             ))}
                                                         </SelectContent>
@@ -354,6 +354,7 @@ export default function Transactions() {
                             <TableRow className="hover:bg-transparent border-white/5">
                                 <TableHead className="py-4 font-bold"><Calendar className="inline mr-2 w-4 h-4" />DATE</TableHead>
                                 <TableHead className="font-bold"><User className="inline mr-2 w-4 h-4" />CUSTOMER</TableHead>
+                                <TableHead className="font-bold">RECORDED BY</TableHead>
                                 <TableHead className="font-bold text-center"><Hash className="inline mr-2 w-4 h-4" />ITEMS</TableHead>
                                 <TableHead className="font-bold text-right"><DollarSign className="inline mr-2 w-4 h-4" />TOTAL AMOUNT</TableHead>
                                 <TableHead className="text-right pr-6 font-bold">ACTIONS</TableHead>
@@ -380,13 +381,18 @@ export default function Transactions() {
                                                 <span className="font-semibold">{group.customer?.name}</span>
                                             </div>
                                         </TableCell>
+                                        <TableCell>
+                                            <span className="text-sm text-muted-foreground">
+                                                {group.transactions[0]?.recorded_by?.name || 'Admin'}
+                                            </span>
+                                        </TableCell>
                                         <TableCell className="text-center">
                                             <Badge variant="secondary" className="bg-white/10 text-foreground">
                                                 {group.itemsCount} items
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right font-bold text-foreground">
-                                            ${group.totalAmount.toFixed(2)}
+                                            KES {group.totalAmount.toFixed(2)}
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <Dialog>

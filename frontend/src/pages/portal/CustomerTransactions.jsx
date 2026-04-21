@@ -57,7 +57,7 @@ export default function CustomerTransactions() {
                                 <div className="flex items-center justify-between">
                                     <CardTitle className="text-base font-bold">{date}</CardTitle>
                                     <span className="text-emerald-400 font-bold text-sm">
-                                        Total: ${dayTotal.toFixed(2)}
+                                        Total: KES {dayTotal.toFixed(2)}
                                     </span>
                                 </div>
                                 <CardDescription>{txs.length} item{txs.length !== 1 ? 's' : ''}</CardDescription>
@@ -79,10 +79,10 @@ export default function CustomerTransactions() {
                                             </div>
                                             <div className="text-right">
                                                 <p className="font-bold text-sm text-emerald-400">
-                                                    ${(tx.quantity * tx.unit_price).toFixed(2)}
+                                                    KES {(tx.quantity * tx.unit_price).toFixed(2)}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    {tx.quantity} × ${tx.unit_price?.toFixed(2)}
+                                                    {tx.quantity} × KES {tx.unit_price?.toFixed(2)}
                                                 </p>
                                             </div>
                                         </div>
