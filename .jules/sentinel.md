@@ -1,0 +1,4 @@
+## 2025-05-15 - JWT Algorithm Switching Vulnerability
+**Vulnerability:** The `AuthMiddleware` was parsing JWT tokens without explicitly validating the signing method. This allows an attacker to potentially bypass authentication by using a "none" algorithm or by using a public key to sign a token that the server attempts to verify using the HMAC (HS256) algorithm with the same public key treated as a secret.
+**Learning:** Standard JWT parsing libraries often require an explicit check of the `alg` header in the Keyfunc callback to be truly secure against algorithm switching attacks.
+**Prevention:** Always verify that `token.Method` is an instance of the expected signing method (e.g., `*jwt.SigningMethodHMAC`) and that the `alg` matches the expected algorithm (e.g., `HS256`) before returning the key for verification.

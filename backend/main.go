@@ -25,6 +25,11 @@ func main() {
 		log.Println("No .env file found, using system environment variables")
 	}
 
+	// Security Check: Ensure JWT_SECRET is set
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("FATAL: JWT_SECRET environment variable is not set. Security requires a secret key for token signing.")
+	}
+
 	// Connect to database
 	database.Connect()
 	database.Migrate()
