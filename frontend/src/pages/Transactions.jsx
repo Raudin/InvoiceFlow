@@ -274,7 +274,7 @@ export default function Transactions() {
                                                         <SelectContent className="bg-card border-white/10">
                                                             {items.map((i) => (
                                                                 <SelectItem key={i.id} value={i.id.toString()}>
-                                                                    {i.name} (${i.unit_price})
+                                                                    {i.name} (KES {i.unit_price})
                                                                 </SelectItem>
                                                             ))}
                                                         </SelectContent>
@@ -392,7 +392,7 @@ export default function Transactions() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right font-bold text-foreground">
-                                            ${group.totalAmount.toFixed(2)}
+                                            KES {group.totalAmount.toFixed(2)}
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
                                             <Dialog>

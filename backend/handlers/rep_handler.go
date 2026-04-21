@@ -80,10 +80,7 @@ func CreateRep(c *gin.Context) {
 		return
 	}
 
-	// Simulate sending email
-	utils.LogEmail(rep.Email, "Representative Account Created",
-		fmt.Sprintf("Hello %s,\nYour representative account has been created.\nEmail: %s\nPassword: %s\nPlease log in to start recording transactions.",
-			rep.Name, rep.Email, password))
+	go utils.SendRepWelcomeEmail(rep.Email, rep.Name, rep.Email, password)
 
 	utils.SuccessResponse(c, http.StatusCreated, "Representative created successfully", rep)
 }

@@ -244,7 +244,7 @@ export default function Reps() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right pr-6">
-                                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <div className="flex justify-end gap-2">
                                                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleEdit(rep)}>
                                                     <Edit2 className="h-4 w-4" />
                                                 </Button>

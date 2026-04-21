@@ -34,12 +34,23 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	// Check if email already exists
+	// Check if email already exists (including soft-deleted users)
 	var existingUser models.User
-	if err := database.DB.Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
-		utils.ErrorResponse(c, http.StatusConflict, "Email already registered")
+	if err := database.DB.Unscoped().Where("email = ?", req.Email).First(&existingUser).Error; err == nil {
+		utils.ErrorResponse(c, http.StatusConflict, "Unable to register with this email")
 		return
 	}
+
+	// Check if business email already exists
+	var existingTenant models.Tenant
+	if err := database.DB.Unscoped().Where("email = ?", req.Email).First(&existingTenant).Error; err == nil {
+		utils.ErrorResponse(c, http.StatusConflict, "Unable to register with this email")
+		return
+	}
+
+	// Start transaction
+	tx := database.DB.Begin()
+	defer tx.Rollback()
 
 	// Create tenant
 	tenant := models.Tenant{
@@ -47,7 +58,8 @@ func Register(c *gin.Context) {
 		Email:        req.Email,
 	}
 
-	if err := database.DB.Create(&tenant).Error; err != nil {
+	if err := tx.Create(&tenant).Error; err != nil {
+		tx.Rollback()
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create tenant")
 		return
 	}
@@ -61,14 +73,24 @@ func Register(c *gin.Context) {
 	}
 
 	if err := user.HashPassword(req.Password); err != nil {
+		tx.Rollback()
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to hash password")
 		return
 	}
 
-	if err := database.DB.Create(&user).Error; err != nil {
+	if err := tx.Create(&user).Error; err != nil {
+		tx.Rollback()
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create user")
 		return
 	}
+
+	// Commit transaction
+	if err := tx.Commit().Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to complete registration")
+		return
+	}
+
+	go utils.SendWelcomeEmail(user.Email, user.Name, tenant.BusinessName)
 
 	// Generate JWT token
 	token, err := generateToken(user.ID, user.TenantID, 0, user.Email, "admin")

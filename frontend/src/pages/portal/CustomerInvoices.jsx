@@ -91,7 +91,7 @@ export default function CustomerInvoices() {
                                                 {cfg.label}
                                             </Badge>
                                             <span className="text-xl font-black text-emerald-400">
-                                                ${inv.total?.toFixed(2)}
+                                                KES {inv.total?.toFixed(2)}
                                             </span>
                                         </div>
                                     </div>
@@ -145,9 +145,9 @@ export default function CustomerInvoices() {
                                                         )}
                                                     </div>
                                                     <div className="text-right text-sm">
-                                                        <p className="font-bold text-emerald-400">${li.total?.toFixed(2)}</p>
+                                                        <p className="font-bold text-emerald-400">KES {li.total?.toFixed(2)}</p>
                                                         <p className="text-xs text-muted-foreground">
-                                                            {li.quantity} × ${li.unit_price?.toFixed(2)}
+                                                            {li.quantity} × KES {li.unit_price?.toFixed(2)}
                                                         </p>
                                                     </div>
                                                 </div>

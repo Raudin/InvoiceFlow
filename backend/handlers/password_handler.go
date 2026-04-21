@@ -51,8 +51,7 @@ func ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	// Simulate sending email
-	utils.LogEmail(user.Email, "Password Reset", "Your password reset token is: "+tokenString)
+	go utils.SendPasswordResetEmail(user.Email, user.Name, tokenString)
 
 	utils.SuccessResponse(c, http.StatusOK, "If your email is registered, you will receive a reset link.", nil)
 }

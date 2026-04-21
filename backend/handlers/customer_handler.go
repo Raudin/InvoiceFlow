@@ -96,6 +96,8 @@ func CreateCustomer(c *gin.Context) {
 			return
 		}
 
+		go utils.SendCustomerPortalEmail(portalEmail, req.Name, portalEmail, portalPassword)
+
 		utils.SuccessResponse(c, http.StatusCreated, "Customer created", gin.H{
 			"customer":          customer,
 			"portal_email":      portalEmail,
@@ -173,4 +175,3 @@ func DeleteCustomer(c *gin.Context) {
 
 	utils.SuccessResponse(c, http.StatusOK, "Customer deleted", nil)
 }
-

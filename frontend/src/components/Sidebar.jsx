@@ -9,7 +9,8 @@ import {
     LogOut,
     PlusCircle,
     ChevronRight,
-    TrendingUp
+    TrendingUp,
+    Shield
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
@@ -38,19 +39,6 @@ export default function Sidebar() {
                         <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground font-bold">Business Suite</span>
                     </div>
                 </Link>
-            </div>
-
-            {/* Quick Stats Mini */}
-            <div className="px-2 mb-8">
-                <div className="p-4 rounded-2xl bg-white/5 border border-white/5 space-y-3">
-                    <div className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Monthly Target</span>
-                        <span className="text-primary font-bold">82%</span>
-                    </div>
-                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-primary w-[82%]" />
-                    </div>
-                </div>
             </div>
 
             {/* Navigation */}
