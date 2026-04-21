@@ -32,6 +32,12 @@ services:
       DB_NAME: ${DB_NAME:-invoiceflow}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://staging.chama360.com}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM}
+      APP_URL: ${APP_URL}
     depends_on:
       db:
         condition: service_healthy
