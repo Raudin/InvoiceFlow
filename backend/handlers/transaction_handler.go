@@ -12,6 +12,7 @@ import (
 	"invoiceflow/utils"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type TransactionRequest struct {
@@ -105,26 +106,43 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	// Start a DB transaction
-	tx := database.DB.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+	// PERFORMANCE OPTIMIZATION:
+	// Instead of verifying items and creating transactions in a loop (N+1 queries),
+	// we use bulk fetch and batch insert to reduce DB roundtrips.
 
-	var createdTransactions []models.Transaction
-
+	// Extract unique item IDs for bulk fetch
+	itemIDMap := make(map[uint]bool)
+	var itemIDs []uint
 	for _, reqItem := range req.Items {
-		// Verify item belongs to tenant and get unit price
-		var item models.Item
-		if err := tx.Where("id = ? AND tenant_id = ?", reqItem.ItemID, tenantID).First(&item).Error; err != nil {
-			tx.Rollback()
+		if !itemIDMap[reqItem.ItemID] {
+			itemIDMap[reqItem.ItemID] = true
+			itemIDs = append(itemIDs, reqItem.ItemID)
+		}
+	}
+
+	// Bulk fetch items to verify and get unit prices
+	var items []models.Item
+	if err := database.DB.Where("id IN ? AND tenant_id = ?", itemIDs, tenantID).Find(&items).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch items")
+		return
+	}
+
+	// Create a map for quick lookup
+	fetchedItemMap := make(map[uint]models.Item)
+	for _, item := range items {
+		fetchedItemMap[item.ID] = item
+	}
+
+	// Prepare transactions and check for missing items
+	var transactions []models.Transaction
+	for _, reqItem := range req.Items {
+		item, exists := fetchedItemMap[reqItem.ItemID]
+		if !exists {
 			utils.ErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Invalid item ID: %d", reqItem.ItemID))
 			return
 		}
 
-		transaction := models.Transaction{
+		transactions = append(transactions, models.Transaction{
 			TenantID:     tenantID,
 			CustomerID:   req.CustomerID,
 			ItemID:       reqItem.ItemID,
@@ -133,28 +151,19 @@ func CreateTransaction(c *gin.Context) {
 			UnitPrice:    item.UnitPrice,
 			Date:         req.Date,
 			Notes:        req.Notes,
-		}
-
-		if err := tx.Create(&transaction).Error; err != nil {
-			tx.Rollback()
-			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transaction")
-			return
-		}
-
-		// Load relationships for response
-		// Note: Doing this inside the loop might be n+1 but for batch creation usually it's fine.
-		// For strict correctness we can load them later or just return the IDs.
-		// Here we just append the basic struct and maybe we don't need full preloads for the response
-		// if the UI just refreshes.
-		createdTransactions = append(createdTransactions, transaction)
+		})
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to commit transactions")
+	// Batch insert all transactions in a single DB transaction
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// GORM supports batch insert when passing a pointer to a slice
+		return tx.Create(&transactions).Error
+	}); err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transactions")
 		return
 	}
 
-	utils.SuccessResponse(c, http.StatusCreated, "Transactions created successfully", createdTransactions)
+	utils.SuccessResponse(c, http.StatusCreated, "Transactions created successfully", transactions)
 }
 
 // GetTransaction returns a single transaction
