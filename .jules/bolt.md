@@ -1,0 +1,3 @@
+## 2026-04-23 - [Batch Operations for Transactions]
+**Learning:** The transaction creation endpoint was performing N+1 queries when processing a batch of items (one fetch and one insert per item). This leads to significant overhead as the number of items in a single transaction record increases. Refactoring to use batch fetching (via `IN` clause) and batch inserting (via GORM's `tx.Create(&slice)`) reduces the database roundtrips from O(N) to O(1) for both read and write operations.
+**Action:** Always prefer batch fetching and batch inserting when dealing with collections of items in a single request.

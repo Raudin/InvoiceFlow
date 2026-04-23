@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -87,7 +86,10 @@ type TransactionItem struct {
 	Quantity int  `json:"quantity" binding:"required,gt=0"`
 }
 
-// CreateTransaction creates multiple transactions for a customer on a specific date
+// CreateTransaction creates multiple transactions for a customer on a specific date.
+// BOLT OPTIMIZATION: Refactored to use batch operations to avoid N+1 queries.
+// Previously, it fetched each item and created each transaction in a loop (2N + 1 queries).
+// Now, it fetches all items in one query and performs a batch insert (3 queries total).
 func CreateTransaction(c *gin.Context) {
 	tenantID := middleware.GetTenantID(c)
 	userID := middleware.GetUserID(c)
@@ -105,6 +107,16 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
+	// 1. Collect all unique ItemIDs from the request
+	itemIDsMap := make(map[uint]bool)
+	var itemIDs []uint
+	for _, reqItem := range req.Items {
+		if !itemIDsMap[reqItem.ItemID] {
+			itemIDsMap[reqItem.ItemID] = true
+			itemIDs = append(itemIDs, reqItem.ItemID)
+		}
+	}
+
 	// Start a DB transaction
 	tx := database.DB.Begin()
 	defer func() {
@@ -113,18 +125,32 @@ func CreateTransaction(c *gin.Context) {
 		}
 	}()
 
-	var createdTransactions []models.Transaction
+	// 2. Fetch all required items in a single query
+	var items []models.Item
+	if err := tx.Where("id IN ? AND tenant_id = ?", itemIDs, tenantID).Find(&items).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch items")
+		return
+	}
 
+	// Verify all items were found
+	if len(items) != len(itemIDs) {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusBadRequest, "One or more invalid item IDs")
+		return
+	}
+
+	// Map items for quick lookup by ID
+	itemsMap := make(map[uint]models.Item)
+	for _, item := range items {
+		itemsMap[item.ID] = item
+	}
+
+	// 3. Prepare slice for batch insert
+	var transactions []models.Transaction
 	for _, reqItem := range req.Items {
-		// Verify item belongs to tenant and get unit price
-		var item models.Item
-		if err := tx.Where("id = ? AND tenant_id = ?", reqItem.ItemID, tenantID).First(&item).Error; err != nil {
-			tx.Rollback()
-			utils.ErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Invalid item ID: %d", reqItem.ItemID))
-			return
-		}
-
-		transaction := models.Transaction{
+		item := itemsMap[reqItem.ItemID]
+		transactions = append(transactions, models.Transaction{
 			TenantID:     tenantID,
 			CustomerID:   req.CustomerID,
 			ItemID:       reqItem.ItemID,
@@ -133,20 +159,14 @@ func CreateTransaction(c *gin.Context) {
 			UnitPrice:    item.UnitPrice,
 			Date:         req.Date,
 			Notes:        req.Notes,
-		}
+		})
+	}
 
-		if err := tx.Create(&transaction).Error; err != nil {
-			tx.Rollback()
-			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transaction")
-			return
-		}
-
-		// Load relationships for response
-		// Note: Doing this inside the loop might be n+1 but for batch creation usually it's fine.
-		// For strict correctness we can load them later or just return the IDs.
-		// Here we just append the basic struct and maybe we don't need full preloads for the response
-		// if the UI just refreshes.
-		createdTransactions = append(createdTransactions, transaction)
+	// 4. Perform batch insert
+	if err := tx.Create(&transactions).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transactions")
+		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
@@ -154,7 +174,7 @@ func CreateTransaction(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessResponse(c, http.StatusCreated, "Transactions created successfully", createdTransactions)
+	utils.SuccessResponse(c, http.StatusCreated, "Transactions created successfully", transactions)
 }
 
 // GetTransaction returns a single transaction
