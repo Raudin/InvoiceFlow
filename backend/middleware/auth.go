@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -45,7 +46,14 @@ func AuthMiddleware() gin.HandlerFunc {
 
 		// Parse and validate token
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(os.Getenv("JWT_SECRET")), nil
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %s", token.Header["alg"])
+			}
+			secret := os.Getenv("JWT_SECRET")
+			if secret == "" {
+				return nil, fmt.Errorf("JWT_SECRET is not configured")
+			}
+			return []byte(secret), nil
 		})
 
 		if err != nil || !token.Valid {

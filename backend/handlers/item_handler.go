@@ -12,8 +12,8 @@ import (
 )
 
 type ItemRequest struct {
-	Name        string  `json:"name" binding:"required"`
-	Description string  `json:"description"`
+	Name        string  `json:"name" binding:"required,max=160"`
+	Description string  `json:"description" binding:"max=500"`
 	UnitPrice   float64 `json:"unit_price" binding:"required,gt=0"`
 }
 

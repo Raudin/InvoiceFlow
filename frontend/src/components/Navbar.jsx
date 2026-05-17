@@ -1,4 +1,4 @@
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from "@/components/ui/button";
 import {
@@ -10,12 +10,11 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LayoutDashboard, Users, Package, Receipt, ArrowLeftRight, LogOut, User, Building, Menu, Bell, Search } from 'lucide-react';
+import { LogOut, User, Building, Menu, Bell, Search } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 
 export default function AppNavbar({ onMenuClick }) {
     const navigate = useNavigate();
-    const location = useLocation();
     const { user, logout } = useAuth();
 
     return (
@@ -80,7 +79,10 @@ export default function AppNavbar({ onMenuClick }) {
                                     <span className="font-medium text-sm">{user?.business_name}</span>
                                 </div>
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="focus:bg-white/5 py-3 cursor-pointer group">
+                            <DropdownMenuItem
+                                className="focus:bg-white/5 py-3 cursor-pointer group"
+                                onClick={() => navigate('/account')}
+                            >
                                 <User className="mr-3 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
                                 <span className="font-medium">Account Settings</span>
                             </DropdownMenuItem>

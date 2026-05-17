@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"invoiceflow/database"
@@ -15,15 +17,23 @@ import (
 )
 
 type RegisterRequest struct {
-	BusinessName string `json:"business_name" binding:"required"`
-	Name         string `json:"name" binding:"required"`
-	Email        string `json:"email" binding:"required,email"`
-	Password     string `json:"password" binding:"required,min=6"`
+	BusinessName string `json:"business_name" binding:"required,max=150"`
+	Name         string `json:"name" binding:"required,max=120"`
+	Email        string `json:"email" binding:"required,email,max=254"`
+	Password     string `json:"password" binding:"required,min=6,max=72"`
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email" binding:"required,email,max=254"`
 	Password string `json:"password" binding:"required"`
+}
+
+type UpdateAccountRequest struct {
+	Name            string `json:"name" binding:"required,max=120"`
+	Email           string `json:"email" binding:"required,email,max=254"`
+	BusinessName    string `json:"business_name" binding:"omitempty,max=150"`
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password" binding:"omitempty,min=6,max=72"`
 }
 
 // Register creates a new tenant and user
@@ -167,6 +177,11 @@ func Login(c *gin.Context) {
 
 // generateToken creates a JWT token
 func generateToken(userID, tenantID, customerID uint, email, role string) (string, error) {
+	secret := os.Getenv("JWT_SECRET")
+	if secret == "" {
+		return "", fmt.Errorf("JWT_SECRET is not configured")
+	}
+
 	claims := middleware.Claims{
 		UserID:     userID,
 		TenantID:   tenantID,
@@ -180,7 +195,7 @@ func generateToken(userID, tenantID, customerID uint, email, role string) (strin
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	tokenString, err := token.SignedString([]byte(secret))
 	if err != nil {
 		return "", err
 	}
@@ -206,5 +221,112 @@ func GetMe(c *gin.Context) {
 		"customer_id":   user.CustomerID,
 		"business_name": user.Tenant.BusinessName,
 		"tenant_id":     user.TenantID,
+	})
+}
+
+// UpdateMe updates the current authenticated user's account settings.
+func UpdateMe(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	var req UpdateAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.BusinessName = strings.TrimSpace(req.BusinessName)
+	if req.Name == "" || req.Email == "" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Name and email are required")
+		return
+	}
+
+	var user models.User
+	if err := database.DB.Preload("Tenant").First(&user, userID).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "User not found")
+		return
+	}
+
+	var existingUser models.User
+	if err := database.DB.Where("email = ? AND id <> ?", req.Email, user.ID).First(&existingUser).Error; err == nil {
+		utils.ErrorResponse(c, http.StatusConflict, "Email already registered")
+		return
+	}
+
+	if user.Role != "admin" && req.BusinessName != "" {
+		utils.ErrorResponse(c, http.StatusForbidden, "Only admin users can update the business name")
+		return
+	}
+
+	if user.Role == "admin" && req.BusinessName == "" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Business name is required")
+		return
+	}
+
+	if req.NewPassword != "" {
+		if req.CurrentPassword == "" {
+			utils.ErrorResponse(c, http.StatusBadRequest, "Current password is required to change password")
+			return
+		}
+		if !user.CheckPassword(req.CurrentPassword) {
+			utils.ErrorResponse(c, http.StatusBadRequest, "Current password does not match our records")
+			return
+		}
+		if err := user.HashPassword(req.NewPassword); err != nil {
+			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to hash password")
+			return
+		}
+	}
+
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to start account update")
+		return
+	}
+
+	user.Name = req.Name
+	user.Email = req.Email
+	if err := tx.Save(&user).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to update account")
+		return
+	}
+
+	if user.Role == "admin" {
+		if err := tx.Model(&models.Tenant{}).Where("id = ?", user.TenantID).Update("business_name", req.BusinessName).Error; err != nil {
+			tx.Rollback()
+			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to update business")
+			return
+		}
+		user.Tenant.BusinessName = req.BusinessName
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to complete account update")
+		return
+	}
+
+	customerIDVal := uint(0)
+	if user.CustomerID != nil {
+		customerIDVal = *user.CustomerID
+	}
+	token, err := generateToken(user.ID, user.TenantID, customerIDVal, user.Email, user.Role)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to refresh token")
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, "Account updated", gin.H{
+		"token": token,
+		"user": gin.H{
+			"id":            user.ID,
+			"name":          user.Name,
+			"email":         user.Email,
+			"role":          user.Role,
+			"customer_id":   user.CustomerID,
+			"business_name": user.Tenant.BusinessName,
+			"tenant_id":     user.TenantID,
+		},
 	})
 }

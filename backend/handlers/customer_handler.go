@@ -13,10 +13,10 @@ import (
 )
 
 type CustomerRequest struct {
-	Name    string `json:"name" binding:"required"`
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
-	Address string `json:"address"`
+	Name    string `json:"name" binding:"required,max=120"`
+	Email   string `json:"email" binding:"omitempty,email,max=254"`
+	Phone   string `json:"phone" binding:"max=32"`
+	Address string `json:"address" binding:"max=500"`
 }
 
 // ListCustomers returns all customers for the tenant

@@ -19,7 +19,7 @@ type TransactionRequest struct {
 	ItemID     uint      `json:"item_id" binding:"required"`
 	Quantity   int       `json:"quantity" binding:"required,gt=0"`
 	Date       time.Time `json:"date" binding:"required"`
-	Notes      string    `json:"notes"`
+	Notes      string    `json:"notes" binding:"max=500"`
 }
 
 // ListTransactions returns all transactions for the tenant
@@ -79,7 +79,7 @@ type BatchTransactionRequest struct {
 	CustomerID uint              `json:"customer_id" binding:"required"`
 	Date       time.Time         `json:"date" binding:"required"`
 	Items      []TransactionItem `json:"items" binding:"required,dive"`
-	Notes      string            `json:"notes"`
+	Notes      string            `json:"notes" binding:"max=500"`
 }
 
 type TransactionItem struct {
@@ -183,7 +183,7 @@ func UpdateTransaction(c *gin.Context) {
 
 	var req struct {
 		Quantity int    `json:"quantity" binding:"required,gt=0"`
-		Notes    string `json:"notes"`
+		Notes    string `json:"notes" binding:"max=500"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {

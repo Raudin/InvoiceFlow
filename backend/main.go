@@ -31,6 +31,7 @@ func main() {
 
 	// Initialize Gin router
 	router := gin.Default()
+	configureTrustedProxies(router)
 
 	// CORS middleware
 	router.Use(cors.New(cors.Config{
@@ -64,6 +65,7 @@ func main() {
 		{
 			// Auth
 			protected.GET("/auth/me", handlers.GetMe)
+			protected.PUT("/auth/me", handlers.UpdateMe)
 
 			// ------- ADMIN routes -------
 			admin := protected.Group("")
@@ -184,5 +186,36 @@ func getAllowedOrigins() []string {
 	if origins == "" {
 		return []string{"http://localhost:5173", "http://localhost:3000"}
 	}
-	return strings.Split(origins, ",")
+
+	seen := make(map[string]bool)
+	var allowed []string
+	for _, origin := range strings.Split(origins, ",") {
+		origin = strings.TrimSpace(origin)
+		if origin != "" && !seen[origin] {
+			allowed = append(allowed, origin)
+			seen[origin] = true
+		}
+	}
+	return allowed
+}
+
+func configureTrustedProxies(router *gin.Engine) {
+	raw := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES"))
+	if raw == "" {
+		if err := router.SetTrustedProxies(nil); err != nil {
+			log.Println("Failed to disable trusted proxies:", err)
+		}
+		return
+	}
+
+	var proxies []string
+	for _, proxy := range strings.Split(raw, ",") {
+		proxy = strings.TrimSpace(proxy)
+		if proxy != "" {
+			proxies = append(proxies, proxy)
+		}
+	}
+	if err := router.SetTrustedProxies(proxies); err != nil {
+		log.Println("Failed to configure trusted proxies:", err)
+	}
 }

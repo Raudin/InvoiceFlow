@@ -20,7 +20,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const response = await api.get('/auth/me');
             setUser(response.data.data);
-        } catch (error) {
+        } catch {
             localStorage.removeItem('token');
         } finally {
             setLoading(false);
@@ -43,6 +43,14 @@ export const AuthProvider = ({ children }) => {
         return response.data;
     };
 
+    const updateAccount = async (data) => {
+        const response = await api.put('/auth/me', data);
+        localStorage.setItem('token', response.data.data.token);
+        const userData = response.data.data.user;
+        setUser(userData);
+        return response.data;
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         setUser(null);
@@ -53,7 +61,7 @@ export const AuthProvider = ({ children }) => {
     const isCustomer = user?.role === 'customer';
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, isAdmin, isCustomer }}>
+        <AuthContext.Provider value={{ user, loading, login, register, updateAccount, logout, isAdmin, isCustomer }}>
             {children}
         </AuthContext.Provider>
     );

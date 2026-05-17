@@ -11,6 +11,7 @@ import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Reps from './pages/Reps';
+import AccountSettings from './pages/AccountSettings';
 import Items from './pages/Items';
 import Transactions from './pages/Transactions';
 import Invoices from './pages/Invoices';
@@ -42,6 +43,7 @@ function App() {
               <Route path="/items" element={<Items />} />
               <Route path="/transactions" element={<Transactions />} />
               <Route path="/invoices" element={<Invoices />} />
+              <Route path="/account" element={<AccountSettings />} />
             </Route>
 
             {/* Customer Portal Routes */}

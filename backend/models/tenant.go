@@ -8,8 +8,8 @@ import (
 
 type Tenant struct {
 	ID           uint           `gorm:"primarykey" json:"id"`
-	BusinessName string         `gorm:"not null" json:"business_name"`
-	Email        string         `gorm:"uniqueIndex;size:255;not null" json:"email"`
+	BusinessName string         `gorm:"size:150;not null" json:"business_name"`
+	Email        string         `gorm:"uniqueIndex;size:254;not null" json:"email"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`

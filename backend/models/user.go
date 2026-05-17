@@ -11,12 +11,12 @@ type User struct {
 	ID           uint           `gorm:"primarykey" json:"id"`
 	TenantID     uint           `gorm:"not null;index" json:"tenant_id"`
 	CustomerID   *uint          `gorm:"index" json:"customer_id"`
-	Name         string         `gorm:"not null" json:"name"`
-	Email        string         `gorm:"uniqueIndex;size:255;not null" json:"email"`
-	PasswordHash string         `gorm:"not null" json:"-"`
-	Role         string         `gorm:"default:'admin'" json:"role"`
+	Name         string         `gorm:"size:120;not null" json:"name"`
+	Email        string         `gorm:"uniqueIndex;size:254;not null" json:"email"`
+	PasswordHash string         `gorm:"size:255;not null" json:"-"`
+	Role         string         `gorm:"size:32;default:'admin'" json:"role"`
 	IsActive     bool           `gorm:"default:true" json:"is_active"`
-	ResetToken   string         `json:"-"`
+	ResetToken   string         `gorm:"size:128;index" json:"-"`
 	ResetExpires *time.Time     `json:"-"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`

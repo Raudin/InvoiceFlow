@@ -13,9 +13,9 @@ import (
 )
 
 type RepRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password"` // Optional on update
+	Name     string `json:"name" binding:"required,max=120"`
+	Email    string `json:"email" binding:"required,email,max=254"`
+	Password string `json:"password" binding:"omitempty,min=6,max=72"` // Optional on update
 }
 
 type ToggleActiveRequest struct {

@@ -31,7 +31,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME:-invoiceflow}
       JWT_SECRET: ${JWT_SECRET}
-      CORS_ORIGINS: ${CORS_ORIGINS:-https://staging.chama360.com}
+      CORS_ORIGINS: ${CORS_ORIGINS:-https://staging.chama360.com,http://localhost:5173,http://localhost:3000}
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
