@@ -71,11 +71,21 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Set user info in context
-		c.Set("user_id", claims.UserID)
-		c.Set("tenant_id", claims.TenantID)
-		c.Set("customer_id", claims.CustomerID)
-		c.Set("email", claims.Email)
-		c.Set("role", claims.Role)
+		if !user.IsActive {
+			utils.ErrorResponse(c, http.StatusForbidden, "Account is inactive")
+			c.Abort()
+			return
+		}
+
+		// Set user info in context from database record for defense-in-depth
+		c.Set("user_id", user.ID)
+		c.Set("tenant_id", user.TenantID)
+		c.Set("email", user.Email)
+		c.Set("role", user.Role)
+
+		if user.CustomerID != nil {
+			c.Set("customer_id", *user.CustomerID)
+		}
 
 		c.Next()
 	}
@@ -169,14 +179,16 @@ func GetRole(c *gin.Context) string {
 	return ""
 }
 
-// GetCustomerID retrieves the customer ID from context (only for customer-role users)
-func GetCustomerID(c *gin.Context) uint {
+// GetCustomerID retrieves the customer ID from context.
+// The second return value is false when the key is absent (user has no associated customer).
+// Callers must check the boolean before using the ID in queries or access-control decisions.
+func GetCustomerID(c *gin.Context) (uint, bool) {
 	customerID, exists := c.Get("customer_id")
 	if !exists {
-		return 0
+		return 0, false
 	}
 	if val, ok := customerID.(uint); ok {
-		return val
+		return val, true
 	}
-	return 0
+	return 0, false
 }

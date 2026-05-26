@@ -14,7 +14,11 @@ import (
 
 // GetPortalDashboard returns stats for the authenticated customer
 func GetPortalDashboard(c *gin.Context) {
-	customerID := middleware.GetCustomerID(c)
+	customerID, ok := middleware.GetCustomerID(c)
+	if !ok {
+		utils.ErrorResponse(c, http.StatusForbidden, "No customer account associated with this user")
+		return
+	}
 
 	var transactionCount int64
 	database.DB.Model(&models.Transaction{}).
@@ -62,7 +66,11 @@ func GetPortalDashboard(c *gin.Context) {
 
 // ListPortalTransactions returns the authenticated customer's transactions
 func ListPortalTransactions(c *gin.Context) {
-	customerID := middleware.GetCustomerID(c)
+	customerID, ok := middleware.GetCustomerID(c)
+	if !ok {
+		utils.ErrorResponse(c, http.StatusForbidden, "No customer account associated with this user")
+		return
+	}
 
 	var transactions []models.Transaction
 	if err := database.DB.Where("customer_id = ?", customerID).
@@ -78,7 +86,11 @@ func ListPortalTransactions(c *gin.Context) {
 
 // ListPortalInvoices returns the authenticated customer's invoices
 func ListPortalInvoices(c *gin.Context) {
-	customerID := middleware.GetCustomerID(c)
+	customerID, ok := middleware.GetCustomerID(c)
+	if !ok {
+		utils.ErrorResponse(c, http.StatusForbidden, "No customer account associated with this user")
+		return
+	}
 
 	var invoices []models.Invoice
 	if err := database.DB.Where("customer_id = ?", customerID).
@@ -94,7 +106,11 @@ func ListPortalInvoices(c *gin.Context) {
 
 // ApprovePortalInvoice lets a customer approve one of their invoices
 func ApprovePortalInvoice(c *gin.Context) {
-	customerID := middleware.GetCustomerID(c)
+	customerID, ok := middleware.GetCustomerID(c)
+	if !ok {
+		utils.ErrorResponse(c, http.StatusForbidden, "No customer account associated with this user")
+		return
+	}
 	id := c.Param("id")
 
 	var invoice models.Invoice
