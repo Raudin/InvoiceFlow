@@ -62,7 +62,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Verify user exists
+		// Verify user exists and is active
 		var user models.User
 		if err := database.DB.First(&user, claims.UserID).Error; err != nil {
 			utils.ErrorResponse(c, http.StatusUnauthorized, "User not found")
@@ -70,12 +70,23 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// Set user info in context
-		c.Set("user_id", claims.UserID)
-		c.Set("tenant_id", claims.TenantID)
-		c.Set("customer_id", claims.CustomerID)
-		c.Set("email", claims.Email)
-		c.Set("role", claims.Role)
+		if !user.IsActive {
+			utils.ErrorResponse(c, http.StatusForbidden, "Account is inactive")
+			c.Abort()
+			return
+		}
+
+		// Set user info in context from database record for defense-in-depth
+		c.Set("user_id", user.ID)
+		c.Set("tenant_id", user.TenantID)
+		c.Set("email", user.Email)
+		c.Set("role", user.Role)
+
+		var customerID uint
+		if user.CustomerID != nil {
+			customerID = *user.CustomerID
+		}
+		c.Set("customer_id", customerID)
 
 		c.Next()
 	}

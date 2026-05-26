@@ -29,6 +29,11 @@ func main() {
 	database.Connect()
 	database.Migrate()
 
+	// Fail fast if JWT_SECRET is missing
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET environment variable is required")
+	}
+
 	// Initialize Gin router
 	router := gin.Default()
 	configureTrustedProxies(router)
