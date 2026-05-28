@@ -113,12 +113,29 @@ func CreateTransaction(c *gin.Context) {
 		}
 	}()
 
-	var createdTransactions []models.Transaction
-
+	// Batch fetch items to avoid N+1 queries
+	var itemIDs []uint
 	for _, reqItem := range req.Items {
-		// Verify item belongs to tenant and get unit price
-		var item models.Item
-		if err := tx.Where("id = ? AND tenant_id = ?", reqItem.ItemID, tenantID).First(&item).Error; err != nil {
+		itemIDs = append(itemIDs, reqItem.ItemID)
+	}
+
+	var items []models.Item
+	if err := tx.Where("id IN ? AND tenant_id = ?", itemIDs, tenantID).Find(&items).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to fetch items")
+		return
+	}
+
+	// Create a map for quick item lookup and validation
+	itemMap := make(map[uint]models.Item)
+	for _, item := range items {
+		itemMap[item.ID] = item
+	}
+
+	var createdTransactions []models.Transaction
+	for _, reqItem := range req.Items {
+		item, exists := itemMap[reqItem.ItemID]
+		if !exists {
 			tx.Rollback()
 			utils.ErrorResponse(c, http.StatusBadRequest, fmt.Sprintf("Invalid item ID: %d", reqItem.ItemID))
 			return
@@ -134,19 +151,14 @@ func CreateTransaction(c *gin.Context) {
 			Date:         req.Date,
 			Notes:        req.Notes,
 		}
-
-		if err := tx.Create(&transaction).Error; err != nil {
-			tx.Rollback()
-			utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transaction")
-			return
-		}
-
-		// Load relationships for response
-		// Note: Doing this inside the loop might be n+1 but for batch creation usually it's fine.
-		// For strict correctness we can load them later or just return the IDs.
-		// Here we just append the basic struct and maybe we don't need full preloads for the response
-		// if the UI just refreshes.
 		createdTransactions = append(createdTransactions, transaction)
+	}
+
+	// Batch insert transactions to reduce database round-trips
+	if err := tx.Create(&createdTransactions).Error; err != nil {
+		tx.Rollback()
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to create transactions")
+		return
 	}
 
 	if err := tx.Commit().Error; err != nil {
